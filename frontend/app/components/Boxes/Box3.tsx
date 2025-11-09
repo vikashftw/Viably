@@ -3,6 +3,7 @@ import { MoreVertical } from 'lucide-react';
 
 export const Box3 = ({ backlog }: { backlog: any[] }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [isCreatingPR, setIsCreatingPR] = useState<string | null>(null);
 
   // Filter out issues with status 'Done'
   const filteredBacklog = backlog
@@ -11,6 +12,53 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
 
   const handleMenuClick = (issueId: string) => {
     setActiveMenu(prev => (prev === issueId ? null : issueId));
+  };
+
+  const handleCreatePR = async (issue: any) => {
+    setIsCreatingPR(issue.id);
+    try {
+      const viablyAnalysis = {
+        feature_name: issue.summary,
+        description: `Implementation for Jira issue: ${issue.id} - ${issue.summary}`,
+        engineer_analysis: {},
+        competitor_analysis: {},
+        similar_features: {},
+        roi_projections: {},
+        overall_recommendation: {},
+        upskilling_insights: {}
+      };
+
+      const targetRepo = {
+        owner: 'pnc-bank',
+        repo: 'banking-platform',
+        branch: 'main'
+      };
+
+      const response = await fetch('http://localhost:3002/api/implementation-flow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          viably_analysis: viablyAnalysis,
+          target_repo: targetRepo
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to create PR');
+      }
+
+      const result = await response.json();
+      if (result.pr_details?.url) {
+        window.open(result.pr_details.url, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to create PR:', error);
+      alert(`Error creating PR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCreatingPR(null);
+      setActiveMenu(null); // Close menu after action
+    }
   };
 
   return (
@@ -34,8 +82,12 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
                     <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700">
                       Market Research
                     </button>
-                    <button className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700">
-                      Create PR
+                    <button
+                      onClick={() => handleCreatePR(issue)}
+                      disabled={isCreatingPR === issue.id}
+                      className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingPR === issue.id ? 'Creating...' : 'Create PR'}
                     </button>
                   </div>
                   <button
