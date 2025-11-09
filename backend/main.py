@@ -8,6 +8,9 @@ import os
 import logging
 import httpx
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from agents.orchestrator import Orchestrator
 from agents.orchestrator_v2 import OrchestratorV2
