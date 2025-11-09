@@ -1,0 +1,290 @@
+/**
+ * NVIDIA Nemotron Code Generation Service
+ * Generates detailed implementation plans from Viably analysis data
+ * Uses NVIDIA NIM API for code generation
+ */
+
+const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
+const NEMOTRON_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct';
+const TEMPERATURE = 0.3;
+const MAX_TOKENS = 4096;
+
+/**
+ * Generate implementation plan from Viably analysis and codebase search
+ */
+export async function generateImplementation(viablyAnalysis, searchResults) {
+  try {
+    console.log('[Nemotron] Generating implementation plan...');
+
+    const prompt = buildImplementationPrompt(viablyAnalysis, searchResults);
+
+    const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: NEMOTRON_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert software architect at PNC Bank creating detailed implementation plans. Generate structured JSON responses for feature development.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: TEMPERATURE,
+        max_tokens: MAX_TOKENS
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`NVIDIA API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const responseText = data.choices[0].message.content;
+
+    console.log('[Nemotron] Received response, parsing...');
+
+    const implementation = parseNemotronResponse(responseText);
+
+    // Generate PR description
+    implementation.pr_description = generatePRDescription(viablyAnalysis, implementation);
+
+    console.log('[Nemotron] Implementation plan generated successfully');
+    return implementation;
+
+  } catch (error) {
+    console.error('[Nemotron] Error generating implementation:', error);
+
+    // Return fallback structure on error
+    return {
+      file_structure: [
+        {
+          path: `src/features/${sanitizeFeatureName(viablyAnalysis.feature_name)}/index.tsx`,
+          type: 'component',
+          purpose: 'Main feature component',
+          estimated_lines: 200
+        }
+      ],
+      tasks: [
+        {
+          id: 'task_001',
+          title: 'Implement feature',
+          description: 'Error generating plan - manual planning required',
+          skills_required: ['frontend'],
+          estimated_hours: 40,
+          priority: 'high'
+        }
+      ],
+      pr_description: `# ${viablyAnalysis.feature_name}\n\nError: ${error.message}`,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Build comprehensive prompt for NVIDIA Nemotron
+ */
+function buildImplementationPrompt(viablyAnalysis, searchResults) {
+  const {
+    feature_name,
+    engineer_analysis = {},
+    competitor_analysis = {},
+    similar_features = {},
+    roi_scenarios = {},
+    overall_recommendation = {}
+  } = viablyAnalysis;
+
+  const {
+    estimated_cost_usd = 0,
+    estimated_sprints = 0,
+    estimated_engineers = 0,
+    key_risks = []
+  } = engineer_analysis;
+
+  const similarProjects = similar_features?.similar_projects || [];
+  const baseCase = roi_scenarios?.base_case || {};
+  const { files_found = [], is_new_feature = true } = searchResults;
+
+  return `Create a detailed implementation plan for this banking feature:
+
+FEATURE DETAILS:
+Feature Name: ${feature_name}
+Description: ${viablyAnalysis.feature_description || 'No description provided'}
+Target User: ${viablyAnalysis.target_user || 'PNC customers'}
+Business Goal: ${viablyAnalysis.business_goal || 'Increase engagement'}
+
+ENGINEER ANALYSIS:
+- Estimated Cost: $${estimated_cost_usd.toLocaleString()}
+- Duration: ${estimated_sprints} sprints (${estimated_sprints * 2} weeks)
+- Team Size: ${estimated_engineers} engineers
+- Key Risks: ${key_risks.join(', ')}
+
+SIMILAR PNC PROJECTS:
+${similarProjects.slice(0, 3).map(p =>
+  `- ${p.name}: $${p.cost?.toLocaleString() || 'N/A'}, Similarity: ${((p.similarity_score || 0) * 100).toFixed(0)}%`
+).join('\n')}
+
+ROI PROJECTION:
+- Base Case ROI: ${baseCase.roi_percent || 0}%
+- Payback Period: ${baseCase.payback_period_months || 'N/A'} months
+
+CODEBASE SEARCH:
+${is_new_feature ? 'NEW feature (no existing code)' : `Related files: ${files_found.slice(0, 5).join(', ')}`}
+
+Generate a JSON implementation plan with this structure:
+{
+  "file_structure": [
+    {
+      "path": "src/features/example/Component.tsx",
+      "type": "component|service|api|test",
+      "purpose": "Brief description",
+      "estimated_lines": 150
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Implement component",
+      "description": "Detailed description",
+      "skills_required": ["mobile", "frontend"],
+      "estimated_hours": 16,
+      "priority": "high|medium|low",
+      "dependencies": []
+    }
+  ]
+}
+
+Generate 5-8 files and 10-12 tasks based on ${estimated_sprints} sprints and ${estimated_engineers} engineers.
+Return ONLY the JSON object, no markdown.`;
+}
+
+/**
+ * Parse Nemotron response into structured data
+ */
+function parseNemotronResponse(responseText) {
+  try {
+    let cleanedText = responseText.trim();
+
+    // Remove markdown code blocks
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.slice(7);
+    } else if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.slice(3);
+    }
+
+    if (cleanedText.endsWith('```')) {
+      cleanedText = cleanedText.slice(0, -3);
+    }
+
+    cleanedText = cleanedText.trim();
+
+    const parsed = JSON.parse(cleanedText);
+
+    if (!parsed.file_structure || !Array.isArray(parsed.file_structure)) {
+      throw new Error('Invalid file_structure');
+    }
+
+    if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+      throw new Error('Invalid tasks');
+    }
+
+    return parsed;
+
+  } catch (error) {
+    console.error('[Nemotron] Parse error:', error);
+
+    return {
+      file_structure: [
+        {
+          path: 'src/features/new-feature/index.tsx',
+          type: 'component',
+          purpose: 'Main component',
+          estimated_lines: 200
+        }
+      ],
+      tasks: [
+        {
+          id: 'task_001',
+          title: 'Implement feature',
+          description: 'Parse error - manual planning required',
+          skills_required: ['frontend'],
+          estimated_hours: 40,
+          priority: 'high',
+          dependencies: []
+        }
+      ],
+      parse_error: error.message
+    };
+  }
+}
+
+/**
+ * Generate PR description with ROI data
+ */
+function generatePRDescription(viablyAnalysis, implementation) {
+  const {
+    feature_name,
+    engineer_analysis = {},
+    roi_scenarios = {},
+    overall_recommendation = {},
+    competitor_analysis = {}
+  } = viablyAnalysis;
+
+  const baseCase = roi_scenarios?.base_case || {};
+  const totalHours = implementation.tasks.reduce((sum, task) => sum + (task.estimated_hours || 0), 0);
+  const totalCost = engineer_analysis.estimated_cost_usd || 0;
+
+  return `# ${feature_name}
+
+## Executive Summary
+${overall_recommendation.summary || 'Feature implementation recommended'}
+
+**Cost:** $${totalCost.toLocaleString()}
+**Duration:** ${engineer_analysis.estimated_sprints || 0} sprints (${(engineer_analysis.estimated_sprints || 0) * 2} weeks)
+**Team Size:** ${engineer_analysis.estimated_engineers || 0} engineers
+**Total Effort:** ${totalHours} hours
+
+## ROI Analysis
+
+### Base Case
+- **ROI:** ${baseCase.roi_percent || 0}%
+- **Payback Period:** ${baseCase.payback_period_months || 'N/A'} months
+- **Projected Revenue (18mo):** $${(baseCase.projected_revenue_18mo || 0).toLocaleString()}
+
+## Competitive Analysis
+**Risk Level:** ${competitor_analysis.competitive_risk_level || 'UNKNOWN'}
+**Key Competitors:** ${competitor_analysis.key_competitors?.join(', ') || 'None'}
+
+## Implementation Overview
+
+### Files Created (${implementation.file_structure.length})
+${implementation.file_structure.slice(0, 8).map(file =>
+  `- \`${file.path}\` (${file.type}): ${file.purpose}`
+).join('\n')}
+
+### Key Tasks (${implementation.tasks.length})
+${implementation.tasks.slice(0, 5).map((task, i) =>
+  `${i + 1}. **${task.title}** (${task.estimated_hours}h, ${task.priority})`
+).join('\n')}
+
+## Risks
+${engineer_analysis.key_risks?.map(risk => `- ${risk}`).join('\n') || '- No major risks identified'}
+
+---
+
+Generated by **Viably AI** - Product Sandbox War Game
+Powered by **NVIDIA Nemotron** for intelligent code generation
+`;
+}
+
+function sanitizeFeatureName(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+export default { generateImplementation };

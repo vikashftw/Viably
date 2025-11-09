@@ -1,0 +1,29 @@
+{
+  "name": "viably-automation-service",
+  "version": "1.0.0",
+  "description": "GitHub automation service for Viably - Powered by NVIDIA Nemotron",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "@octokit/rest": "^20.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "viably",
+    "nvidia",
+    "nemotron",
+    "github-automation",
+    "pnc"
+  ],
+  "author": "Viably Team",
+  "license": "MIT"
+}

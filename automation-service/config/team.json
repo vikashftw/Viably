@@ -1,0 +1,39 @@
+{
+  "engineers": [
+    {
+      "name": "Alice Chen",
+      "email": "alice.chen@pnc.com",
+      "github": "alice-chen",
+      "skills": ["mobile", "frontend", "react", "react-native"],
+      "current_capacity": 0.6
+    },
+    {
+      "name": "Bob Kumar",
+      "email": "bob.kumar@pnc.com",
+      "github": "bob-kumar",
+      "skills": ["backend", "api", "python", "fastapi"],
+      "current_capacity": 0.8
+    },
+    {
+      "name": "Charlie Davis",
+      "email": "charlie.davis@pnc.com",
+      "github": "charlie-davis",
+      "skills": ["security", "compliance", "audit"],
+      "current_capacity": 0.4
+    },
+    {
+      "name": "Diana Martinez",
+      "email": "diana.martinez@pnc.com",
+      "github": "diana-martinez",
+      "skills": ["ml", "data-science", "analytics", "python"],
+      "current_capacity": 0.7
+    },
+    {
+      "name": "Ethan Wong",
+      "email": "ethan.wong@pnc.com",
+      "github": "ethan-wong",
+      "skills": ["devops", "cloud", "infrastructure", "docker"],
+      "current_capacity": 0.5
+    }
+  ]
+}
