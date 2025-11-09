@@ -31,10 +31,10 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
                       activeMenu === issue.id ? 'max-w-xs' : 'max-w-0'
                     }`}
                   >
-                    <button className="bg-sky-600 text-white px-3 py-1 rounded-md text-xs whitespace-nowrap hover:bg-sky-700">
+                    <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700">
                       Market Research
                     </button>
-                    <button className="bg-blue-600 text-white px-3 py-1 rounded-md text-xs whitespace-nowrap hover:bg-blue-700">
+                    <button className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700">
                       Create PR
                     </button>
                   </div>
