@@ -1,156 +1,134 @@
 'use client';
 
 import React from 'react';
-import { TrendingUp, DollarSign, Clock, RefreshCcw } from 'lucide-react';
+import { Shield, AlertTriangle, Clock, TrendingUp, RefreshCcw } from 'lucide-react';
 import { useAnalysisData } from '../AnalysisProvider';
 import { LoadingStateCard, ErrorStateCard } from './BoxState';
 
-const scenarioLabels = {
-  worst_case: 'Worst Case',
-  base_case: 'Base Case',
-  best_case: 'Best Case',
-} as const;
-
-const scenarioOrder = ['worst_case', 'base_case', 'best_case'] as const;
-
-const formatCurrency = (value?: number) => {
-  if (typeof value !== 'number') return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
+const riskStyles: Record<string, { bg: string; text: string; badge: string }> = {
+  LOW: {
+    bg: 'from-emerald-900 to-emerald-800',
+    text: 'text-emerald-300',
+    badge: 'bg-emerald-500/20 text-emerald-100 border-emerald-500/50',
+  },
+  MEDIUM: {
+    bg: 'from-amber-900 to-amber-800',
+    text: 'text-amber-300',
+    badge: 'bg-amber-500/20 text-amber-100 border-amber-500/50',
+  },
+  HIGH: {
+    bg: 'from-red-900 to-red-800',
+    text: 'text-red-300',
+    badge: 'bg-red-500/20 text-red-100 border-red-500/50',
+  },
 };
 
 export const Box1 = () => {
   const { data, loading, error, refetch } = useAnalysisData();
-  const scenarios = data?.roi_projections?.scenarios;
-  const recommendedKey = data?.roi_projections?.recommended_scenario;
-  const recommendedScenario = recommendedKey
-    ? scenarios?.[recommendedKey]
-    : null;
+  const competitor = data?.competitor_analysis;
 
   if (loading) {
-    return <LoadingStateCard title="ROI projections" />;
+    return <LoadingStateCard title="Competitor Intelligence" />;
   }
 
-  if (error || !scenarios) {
+  if (error || !competitor) {
     return (
       <ErrorStateCard
-        title="ROI projections"
-        message={error ?? 'ROI data unavailable'}
+        title="Competitor Intelligence"
+        message={error ?? 'Competitor data unavailable'}
         onRetry={refetch}
       />
     );
   }
 
-  const successProbability =
-    data?.overall_recommendation?.success_probability ?? null;
+  const riskLevel = competitor.competitive_risk_level || 'MEDIUM';
+  const styles = riskStyles[riskLevel] || riskStyles.MEDIUM;
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700 rounded-lg p-6 h-full shadow-lg text-white flex flex-col">
-      <div className="flex items-start justify-between gap-3">
+    <div className={`bg-gradient-to-br ${styles.bg} border border-slate-700 rounded-lg p-6 h-full shadow-lg text-white flex flex-col overflow-hidden`}>
+      <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-2xl font-semibold mb-1 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-300" />
-            ROI Projection
+          <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
+            <Shield className={`w-5 h-5 ${styles.text}`} />
+            Competitor Report
           </h2>
-          <p className="text-sm text-slate-400">
-            {data?.feature_name ?? 'Feature analysis'}
+          <p className="text-sm text-slate-300">
+            Real-time competitive intelligence
           </p>
         </div>
         <button
           onClick={refetch}
-          className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
         >
           <RefreshCcw className="w-3 h-3" />
           Refresh
         </button>
       </div>
 
-      {recommendedScenario && (
-        <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-            <div className="text-xs uppercase text-slate-400 mb-1">
-              Recommended
-            </div>
-            <div className="text-3xl font-bold">
-              {recommendedScenario.roi_percent.toFixed(0)}%
-            </div>
-            <p className="text-xs text-slate-400 mt-1">ROI ({scenarioLabels[recommendedScenario.scenario] ?? 'Scenario'})</p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-            <div className="text-xs uppercase text-slate-400 mb-1">
-              Payback
-            </div>
-            <div className="text-3xl font-bold">
-              {recommendedScenario.payback_period_months.toFixed(1)}
-            </div>
-            <p className="text-xs text-slate-400 mt-1">Months to payback</p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-            <div className="text-xs uppercase text-slate-400 mb-1">
-              Revenue (18mo)
-            </div>
-            <div className="text-2xl font-bold">
-              {formatCurrency(recommendedScenario.projected_revenue_18mo)}
-            </div>
-            <p className="text-xs text-slate-400 mt-1">Projected gross</p>
-          </div>
-        </div>
-      )}
+      {/* Risk Level Badge */}
+      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${styles.badge} mb-4 w-fit`}>
+        <AlertTriangle className="w-4 h-4" />
+        <span className="text-sm font-semibold">{riskLevel} RISK</span>
+      </div>
 
-      {successProbability !== null && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Success probability</span>
-            <span>{(successProbability * 100).toFixed(0)}%</span>
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-white/10 rounded-lg p-3 border border-white/20">
+          <div className="text-xs uppercase text-slate-300 mb-1">Competitors</div>
+          <div className="text-2xl font-bold">
+            {competitor.key_competitors?.length || 0}
           </div>
-          <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-400"
-              style={{ width: `${Math.min(100, successProbability * 100)}%` }}
-            />
-          </div>
+          <p className="text-xs text-slate-400 mt-1">Active threats</p>
         </div>
-      )}
+        <div className="bg-white/10 rounded-lg p-3 border border-white/20">
+          <div className="text-xs uppercase text-slate-300 mb-1">Response Time</div>
+          <div className="text-2xl font-bold flex items-baseline gap-1">
+            {competitor.expected_response_time_sprints || '—'}
+            <span className="text-sm font-normal">sprints</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            ~{(competitor.expected_response_time_sprints || 0) * 2} weeks
+          </p>
+        </div>
+      </div>
 
-      <div className="mt-6 space-y-3 flex-1">
-        {scenarioOrder.map((key) => {
-          const scenario = scenarios[key];
-          if (!scenario) return null;
-          return (
+      {/* Top Competitors List */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="text-xs uppercase text-slate-300 mb-2 flex items-center gap-2">
+          <TrendingUp className="w-3 h-3" />
+          Key Competitors
+        </div>
+        <div className="space-y-2">
+          {competitor.key_competitors?.slice(0, 5).map((comp: string, i: number) => (
             <div
-              key={key}
-              className="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-sm"
+              key={i}
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm hover:bg-white/10 transition-colors"
             >
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                <span>{scenarioLabels[key]}</span>
-                <span>
-                  {typeof scenario.adoption_rate === 'number'
-                    ? `${(scenario.adoption_rate * 100).toFixed(0)}% adoption`
-                    : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-300" />
-                  <span className="font-semibold">
-                    {scenario.roi_percent.toFixed(0)}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-sky-300" />
-                  <span>{scenario.payback_period_months.toFixed(1)} mo</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-amber-300" />
-                  <span>{formatCurrency(scenario.projected_revenue_18mo)}</span>
-                </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{comp}</span>
+                <span className="text-xs text-slate-400">#{i + 1}</span>
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+      </div>
+
+      {/* Response Strategy */}
+      {competitor.response_play && (
+        <div className="mt-4 pt-4 border-t border-white/20">
+          <div className="text-xs uppercase text-slate-300 mb-2">
+            Expected Response
+          </div>
+          <p className="text-sm text-slate-200 leading-relaxed">
+            {competitor.response_play}
+          </p>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="mt-4 pt-3 border-t border-white/10 text-xs text-slate-400 flex items-center gap-2">
+        <Clock className="w-3 h-3" />
+        <span>Updated in real-time via Serper API</span>
       </div>
     </div>
   );
