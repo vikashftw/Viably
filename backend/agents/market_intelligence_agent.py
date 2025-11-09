@@ -55,6 +55,10 @@ class MarketIntelligenceAgent:
 
         logger.info("Market Intelligence Agent initialized")
 
+    # ------------------------------------------------------------------
+    # Existing API
+    # ------------------------------------------------------------------
+
     def analyze(
         self,
         feature_name: str,
@@ -122,9 +126,140 @@ class MarketIntelligenceAgent:
         # Save results to JSON
         self._save_results(results)
 
-        logger.info(f"Market intelligence analysis complete. Modules run: {results['modules_run']}")
+        logger.info(
+            f"Market intelligence analysis complete. Modules run: {results['modules_run']}"
+        )
 
         return results
+
+    # ------------------------------------------------------------------
+    # NEW: Normalized API for OrchestratorV2 (Phase-1)
+    # ------------------------------------------------------------------
+
+    def analyze_with_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enriched entrypoint for OrchestratorV2.
+
+        Uses:
+        - PM input (feature name / description)
+        - industry from context
+        - seed market facts
+
+        Produces normalized Phase-1 schema:
+
+        {
+          "agent": "market_intel_v1",
+          "feature_name": str,
+          "focus_region": "US",
+          "primary_customer_segments": [str],
+          "estimated_market_size_usd": int,
+          "growth_rate_percent": int,
+          "adoption_readiness": "LOW"|"MEDIUM"|"HIGH",
+          "regulatory_impact": "LOW"|"MEDIUM"|"HIGH",
+          "operational_impact": "LOW"|"MEDIUM"|"HIGH",
+          "adoption_drivers": [str],
+          "adoption_barriers": [str],
+          "evidence_snippets": [str]
+        }
+        """
+        feature_name = context.get("feature_name") or "Feature"
+        industry = context.get("industry", "banking")
+        seed_facts = context.get("seed_market_facts", []) or []
+        target_user = (context.get("target_user") or "").lower()
+
+        # 1) Call existing analyze() for real/heuristic data (market size only by default)
+        base = self.analyze(
+            feature_name=feature_name,
+            industry=industry,
+            config={"search_market_size": True}
+        )
+
+        market_data = base.get("market_data", {}) or {}
+        raw_size = market_data.get("market_size_usd", 0)
+        raw_cagr = market_data.get("growth_rate_cagr", 0.0)
+
+        estimated_market_size_usd = int(raw_size) if raw_size else 0
+        growth_rate_percent = int(round(raw_cagr * 100)) if raw_cagr else 0
+
+        # 2) Derive focus region and segments (PNC-style)
+        if industry.lower() in ["banking", "fintech"]:
+            focus_region = "US"
+            primary_segments: List[str] = []
+            # Rough mapping based on feature / target hints
+            if "branch" in feature_name.lower():
+                primary_segments.append("Retail branch users")
+                primary_segments.append("Small business customers using in-branch services")
+            else:
+                primary_segments.append("Retail banking customers")
+                primary_segments.append("Small business banking customers")
+        else:
+            focus_region = "Global"
+            primary_segments = ["Target customers in relevant vertical"]
+
+        # 3) Adoption readiness heuristic
+        # High if we have non-zero market + decent growth, else medium/low
+        if estimated_market_size_usd > 0 and growth_rate_percent >= 5:
+            adoption_readiness = "HIGH"
+        elif estimated_market_size_usd > 0:
+            adoption_readiness = "MEDIUM"
+        else:
+            adoption_readiness = "LOW"
+
+        # 4) Regulatory / operational impact heuristics
+        if industry.lower() in ["banking", "fintech"]:
+            regulatory_impact = "HIGH"
+            operational_impact = "HIGH"
+        else:
+            regulatory_impact = "MEDIUM"
+            operational_impact = "MEDIUM"
+
+        # 5) Adoption drivers / barriers tuned for PNC-style smart branch / digital work
+        adoption_drivers = [
+            "Customers expect seamless digital-to-branch experiences.",
+            "Need to justify branch and channel investments with measurable outcomes.",
+        ]
+
+        adoption_barriers = [
+            "Operational change management for branch and frontline staff.",
+            "Data privacy, model risk, and compliance reviews.",
+        ]
+
+        # 6) Evidence snippets: combine seed facts + any search source
+        evidence_snippets: List[str] = list(seed_facts)
+
+        source_url = market_data.get("source_url")
+        source_title = market_data.get("source_title")
+        if source_url or source_title:
+            snippet = f"Market sizing reference: {source_title or ''} ({source_url or ''})"
+            evidence_snippets.append(snippet.strip())
+
+        normalized = {
+            "agent": "market_intel_v1",
+            "feature_name": feature_name,
+            "focus_region": focus_region,
+            "primary_customer_segments": primary_segments,
+            "estimated_market_size_usd": estimated_market_size_usd,
+            "growth_rate_percent": growth_rate_percent,
+            "adoption_readiness": adoption_readiness,
+            "regulatory_impact": regulatory_impact,
+            "operational_impact": operational_impact,
+            "adoption_drivers": adoption_drivers,
+            "adoption_barriers": adoption_barriers,
+            "evidence_snippets": evidence_snippets,
+        }
+
+        logger.info(
+            "MarketIntelligenceAgent.analyze_with_context -> "
+            f"${normalized['estimated_market_size_usd']:,}, "
+            f"{normalized['growth_rate_percent']}% growth, "
+            f"{normalized['adoption_readiness']} readiness"
+        )
+
+        return normalized
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
     def _search_market_size(
         self,
@@ -141,7 +276,6 @@ class MarketIntelligenceAgent:
         Returns:
             Dict with market_size_usd, growth_rate_cagr, source_url
         """
-        # Construct specific market research query
         query = f"{feature_name} {industry} market size 2025 forecast CAGR"
 
         try:
@@ -177,46 +311,38 @@ class MarketIntelligenceAgent:
         source_url = None
         source_title = None
 
-        # Regex patterns for market data
-        # Matches: $47.3B, $2.4 billion, USD 47.3 billion, etc.
         size_pattern = r'\$?\s*(\d+\.?\d*)\s*(billion|B|trillion|T|million|M)'
-        # Matches: 12.4% CAGR, 12.4% growth, CAGR of 12.4%
         cagr_pattern = r'(\d+\.?\d*)\s*%\s*(?:CAGR|growth|annually)'
 
-        for result in organic_results[:3]:  # Check first 3 results
+        for result in organic_results[:3]:
             snippet = result.get("snippet", "")
             title = result.get("title", "")
             link = result.get("link", "")
 
-            # Try to extract market size
+            # Market size
             if market_size_usd is None:
                 size_match = re.search(size_pattern, snippet, re.IGNORECASE)
                 if size_match:
                     value = float(size_match.group(1))
                     unit = size_match.group(2).lower()
-
-                    # Convert to USD
                     if unit in ['billion', 'b']:
                         market_size_usd = int(value * 1_000_000_000)
                     elif unit in ['trillion', 't']:
                         market_size_usd = int(value * 1_000_000_000_000)
                     elif unit in ['million', 'm']:
                         market_size_usd = int(value * 1_000_000)
-
                     source_url = link
                     source_title = title
 
-            # Try to extract CAGR
+            # CAGR
             if growth_rate_cagr is None:
                 cagr_match = re.search(cagr_pattern, snippet, re.IGNORECASE)
                 if cagr_match:
-                    growth_rate_cagr = float(cagr_match.group(1)) / 100  # Convert to decimal
-
-                    if source_url is None:  # If we haven't set source yet
+                    growth_rate_cagr = float(cagr_match.group(1)) / 100.0
+                    if source_url is None:
                         source_url = link
                         source_title = title
 
-        # Fallback if no data found
         if market_size_usd is None:
             market_size_usd = 0
             note = "Market size not found in search results"
@@ -229,8 +355,8 @@ class MarketIntelligenceAgent:
         return {
             "market_size_usd": market_size_usd,
             "growth_rate_cagr": growth_rate_cagr,
-            "source_url": source_url or organic_results[0].get("link", ""),
-            "source_title": source_title or organic_results[0].get("title", ""),
+            "source_url": source_url or (organic_results[0].get("link", "") if organic_results else ""),
+            "source_title": source_title or (organic_results[0].get("title", "") if organic_results else ""),
             "note": note,
             "confidence": "HIGH" if market_size_usd > 0 and growth_rate_cagr > 0 else "MEDIUM"
         }
@@ -242,13 +368,6 @@ class MarketIntelligenceAgent:
     ) -> List[Dict[str, str]]:
         """
         Search for industry trends.
-
-        Args:
-            feature_name: Feature name
-            industry: Industry context
-
-        Returns:
-            List of trend dictionaries with trend text and source
         """
         query = f"{industry} trends 2025 {feature_name}"
 
@@ -261,17 +380,14 @@ class MarketIntelligenceAgent:
                 snippet = result.get("snippet", "")
                 title = result.get("title", "")
                 link = result.get("link", "")
-
-                # Extract trend from snippet
-                # Look for sentences with trend indicators
                 if any(word in snippet.lower() for word in ['trend', 'growth', 'increase', 'decrease', 'shift']):
                     trends.append({
-                        "trend": snippet[:200],  # First 200 chars
-                        "source": f"{title}",
+                        "trend": snippet[:200],
+                        "source": title,
                         "source_url": link
                     })
 
-            return trends[:3]  # Return top 3 trends
+            return trends[:3]
 
         except Exception as e:
             logger.error(f"Trends search failed: {str(e)}")
@@ -280,14 +396,7 @@ class MarketIntelligenceAgent:
     def _search_competitor_moves(self, industry: str) -> List[Dict[str, str]]:
         """
         Search for recent competitor announcements and moves.
-
-        Args:
-            industry: Industry context
-
-        Returns:
-            List of competitor news items with source
         """
-        # Focus on major banks for PNC demo
         if industry.lower() in ['banking', 'fintech']:
             competitors = ['Chase', 'Bank of America', 'Wells Fargo', 'Citibank']
             query = f"{' OR '.join(competitors)} new branches digital transformation 2025"
@@ -304,7 +413,7 @@ class MarketIntelligenceAgent:
                     "news": result.get("snippet", ""),
                     "source": result.get("title", ""),
                     "source_url": result.get("link", ""),
-                    "date": "2025"  # Placeholder - Serper doesn't always provide dates
+                    "date": "2025"
                 })
 
             return news_items
@@ -316,12 +425,6 @@ class MarketIntelligenceAgent:
     def _search_regulatory(self, industry: str) -> List[Dict[str, str]]:
         """
         Search for regulatory and compliance news.
-
-        Args:
-            industry: Industry context
-
-        Returns:
-            List of regulatory items with source
         """
         query = f"{industry} regulations compliance requirements 2025 new rules"
 
@@ -346,9 +449,6 @@ class MarketIntelligenceAgent:
     def _market_size_fallback(self) -> Dict[str, Any]:
         """
         Fallback market data when search fails.
-
-        Returns:
-            Dict with placeholder market data
         """
         return {
             "market_size_usd": 0,
@@ -362,9 +462,6 @@ class MarketIntelligenceAgent:
     def _save_results(self, results: Dict[str, Any]) -> None:
         """
         Save analysis results to JSON file.
-
-        Args:
-            results: Market intelligence results dictionary
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"market_intel_{timestamp}.json"
@@ -382,7 +479,6 @@ class MarketIntelligenceAgent:
 
 # Standalone test functionality
 if __name__ == "__main__":
-    # Configure logging for standalone test
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -393,10 +489,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
 
-    # Initialize agent
     agent = MarketIntelligenceAgent()
 
-    # Test: Market size + competitors (optimal for demo)
     print("TEST: Market Size + Competitor News (Demo Config)")
     print("-" * 60)
     results = agent.analyze(
@@ -409,8 +503,7 @@ if __name__ == "__main__":
     )
     print(json.dumps(results, indent=2))
     print()
-
     print("=" * 60)
     print("TEST COMPLETE!")
-    print(f"Results saved to: backend/data/analysis_history/")
+    print("Results saved to: backend/data/analysis_history/")
     print("=" * 60)

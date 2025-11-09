@@ -7,9 +7,13 @@ analyze competitive risks.
 
 import logging
 from typing import Dict, Any
+
 from .base_agent import BaseAgent
 from utils.search import SerperSearch
-from prompts.competitor_prompts import get_competitor_system_prompt, get_competitor_user_prompt
+from prompts.competitor_prompts import (
+    get_competitor_system_prompt,
+    get_competitor_user_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,16 @@ class CompetitorAgent(BaseAgent):
         self.search = SerperSearch()
         logger.info("Competitor Agent initialized")
 
-    def analyze(self, feature_description: str, feature_name: str = None, **kwargs) -> Dict[str, Any]:
+    # ------------------------------------------------------------------
+    # Existing API (kept for compatibility)
+    # ------------------------------------------------------------------
+
+    def analyze(
+        self,
+        feature_description: str,
+        feature_name: str = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         Analyze competitive landscape for a feature.
 
@@ -38,7 +51,7 @@ class CompetitorAgent(BaseAgent):
             **kwargs: Additional parameters (e.g., industry)
 
         Returns:
-            Dictionary with competitive analysis.
+            Dictionary with competitive analysis (LLM-defined schema).
         """
         try:
             # Step 1: Perform web search
@@ -53,7 +66,7 @@ class CompetitorAgent(BaseAgent):
             user_prompt = get_competitor_user_prompt(
                 feature_name or "Feature",
                 feature_description,
-                search_results
+                search_results,
             )
 
             # Step 3: Call LLM
@@ -62,7 +75,7 @@ class CompetitorAgent(BaseAgent):
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 temperature=0.3,  # Slightly higher for more creative analysis
-                max_tokens=1200
+                max_tokens=1200,
             )
 
             # Step 4: Parse response
@@ -70,9 +83,18 @@ class CompetitorAgent(BaseAgent):
 
             # Step 5: Add metadata
             result["search_performed"] = True
-            result["search_results_count"] = len(search_results.split('\n'))
+            # crude count; fine for demo
+            if isinstance(search_results, str):
+                result["search_results_count"] = len(
+                    [line for line in search_results.split("\n") if line.strip()]
+                )
+            else:
+                result["search_results_count"] = 0
 
-            logger.info(f"Competitor Agent analysis complete: Risk score {result.get('risk_score', 'N/A')}/10")
+            logger.info(
+                f"Competitor Agent analysis complete: "
+                f"risk_score={result.get('risk_score', 'N/A')}"
+            )
             return result
 
         except Exception as e:
@@ -87,5 +109,125 @@ class CompetitorAgent(BaseAgent):
                 "risk_factors": [f"Analysis failed: {str(e)}"],
                 "market_opportunity": {},
                 "search_performed": False,
-                "error": str(e)
+                "error": str(e),
             }
+
+    # ------------------------------------------------------------------
+    # New API for OrchestratorV2 (Phase-1 normalized output)
+    # ------------------------------------------------------------------
+
+    def analyze_with_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enriched entrypoint for OrchestratorV2.
+
+        Uses:
+        - PM input (feature name/description)
+        - industry from context
+        - seed competitor facts
+
+        Normalizes to the agreed Phase-1 schema:
+
+        {
+          "agent": "competitor_v1",
+          "feature_name": str,
+          "key_competitors": [str],
+          "expected_response_time_sprints": int,
+          "competitive_risk_level": "LOW"|"MEDIUM"|"HIGH",
+          "likely_response_strategies": [str],
+          "differentiation_factors": [str],
+          "pricing_pressure_risk": str | None,
+          "substitution_risk": str | None,
+          "evidence_snippets": [str]
+        }
+        """
+        feature_name = context.get("feature_name") or "Feature"
+        feature_description = context.get("feature_description", "")
+        industry = context.get("industry", "banking")
+        seed_facts = context.get("seed_competitor_facts", []) or []
+
+        # 1) Call existing analyze() to leverage real search + LLM
+        base = self.analyze(
+            feature_description=feature_description,
+            feature_name=feature_name,
+            industry=industry,
+        )
+
+        # 2) Extract/normalize competitor list
+        key_competitors = (
+            base.get("key_competitors")
+            or base.get("competitors")
+            or []
+        )
+
+        # 3) Derive response time in sprints
+        sprints = base.get("expected_response_time_sprints")
+        if not sprints:
+            # fallback from months if present
+            months = base.get("time_to_replicate_months")
+            if months:
+                # 1 sprint ~= 2 weeks ~= 0.5 months
+                sprints = int(max(1, round(months / 0.5)))
+            else:
+                sprints = 4  # safe default
+
+        # 4) Map numeric risk_score -> LOW / MEDIUM / HIGH
+        risk_score = base.get("risk_score")
+        if isinstance(risk_score, (int, float)):
+            if risk_score <= 3:
+                competitive_risk_level = "LOW"
+            elif risk_score >= 8:
+                competitive_risk_level = "HIGH"
+            else:
+                competitive_risk_level = "MEDIUM"
+        else:
+            competitive_risk_level = base.get(
+                "competitive_risk_level", "MEDIUM"
+            ).upper()
+
+        # 5) Likely strategies & differentiation
+        likely_response_strategies = base.get(
+            "likely_response_strategies",
+            [
+                base.get("strategic_recommendation", "")
+            ]
+            if base.get("strategic_recommendation")
+            else [],
+        )
+
+        differentiation_factors = base.get("differentiation_factors", [])
+        if not differentiation_factors:
+            differentiation_factors = [
+                "Depth of integration with PNC core systems and analytics.",
+                "Ability to orchestrate true omnichannel branch experiences.",
+            ]
+
+        # 6) Simple placeholders for pricing/substitution risk (could be refined)
+        pricing_pressure_risk = base.get("pricing_pressure_risk")
+        substitution_risk = base.get("substitution_risk")
+
+        # 7) Evidence snippets from seed facts + any model commentary
+        evidence_snippets = base.get("evidence_snippets", [])
+        if seed_facts:
+            evidence_snippets = seed_facts + evidence_snippets
+
+        normalized = {
+            "agent": "competitor_v1",
+            "feature_name": feature_name,
+            "key_competitors": key_competitors,
+            "expected_response_time_sprints": int(sprints),
+            "competitive_risk_level": competitive_risk_level,
+            "likely_response_strategies": likely_response_strategies,
+            "differentiation_factors": differentiation_factors,
+            "pricing_pressure_risk": pricing_pressure_risk,
+            "substitution_risk": substitution_risk,
+            "evidence_snippets": evidence_snippets,
+        }
+
+        logger.info(
+            "CompetitorAgent.analyze_with_context -> "
+            f"{len(normalized['key_competitors'])} competitors, "
+            f"{normalized['competitive_risk_level']} risk, "
+            f"{normalized['expected_response_time_sprints']} sprints to replicate"
+        )
+
+        return normalized
