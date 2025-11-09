@@ -209,14 +209,34 @@ function generatePRDescription(viablyAnalysis, implementation) {
   const {
     feature_name,
     engineer_analysis = {},
-    roi_scenarios = {},
+    roi_projections = {},
     overall_recommendation = {},
     competitor_analysis = {}
   } = viablyAnalysis;
 
-  const baseCase = roi_scenarios?.base_case || {};
-  const totalHours = implementation.tasks.reduce((sum, task) => sum + (task.estimated_hours || 0), 0);
+  // Debug logging to trace data issues
+  console.log('[Nemotron] PR Debug - ROI Data:', JSON.stringify(roi_projections, null, 2));
+  console.log('[Nemotron] PR Debug - Competitor Data:', JSON.stringify(competitor_analysis, null, 2));
+  console.log('[Nemotron] PR Debug - Engineer Data:', JSON.stringify(engineer_analysis, null, 2));
+
+  // Extract ROI data with correct nested structure
+  const baseCase = roi_projections?.scenarios?.base_case || {};
+  const roiPercent = baseCase.roi_percent || baseCase.roi_percentage || baseCase.roi || 0;
+  const paybackMonths = baseCase.payback_period_months || baseCase.payback_months || baseCase.payback_period || 'N/A';
+  const projectedRevenue = baseCase.projected_revenue_18mo || baseCase.revenue_18mo || baseCase.projected_revenue || 0;
+
+  // Calculate realistic total effort (team capacity, not just task hours)
+  const sprintsCount = engineer_analysis.estimated_sprints || 4;
+  const engineersCount = engineer_analysis.estimated_engineers || 5;
+  const totalHours = sprintsCount * engineersCount * 80; // 80 hours per engineer per sprint
+  const taskHours = implementation.tasks.reduce((sum, task) => sum + (task.estimated_hours || 0), 0);
+
   const totalCost = engineer_analysis.estimated_cost_usd || 0;
+
+  // Extract response time with fallbacks
+  const responseTimeSprints = competitor_analysis.expected_response_time_sprints ||
+                               competitor_analysis.response_time_sprints ||
+                               4;
 
   return `# ${feature_name}
 
@@ -224,20 +244,21 @@ function generatePRDescription(viablyAnalysis, implementation) {
 ${overall_recommendation.summary || 'Feature implementation recommended'}
 
 **Cost:** $${totalCost.toLocaleString()}
-**Duration:** ${engineer_analysis.estimated_sprints || 0} sprints (${(engineer_analysis.estimated_sprints || 0) * 2} weeks)
-**Team Size:** ${engineer_analysis.estimated_engineers || 0} engineers
-**Total Effort:** ${totalHours} hours
+**Duration:** ${sprintsCount} sprints (${sprintsCount * 2} weeks)
+**Team Size:** ${engineersCount} engineers
+**Total Effort:** ${totalHours} hours (${engineersCount} engineers × ${sprintsCount} sprints)
 
 ## ROI Analysis
 
 ### Base Case
-- **ROI:** ${baseCase.roi_percent || 0}%
-- **Payback Period:** ${baseCase.payback_period_months || 'N/A'} months
-- **Projected Revenue (18mo):** $${(baseCase.projected_revenue_18mo || 0).toLocaleString()}
+- **ROI:** ${roiPercent}%
+- **Payback Period:** ${paybackMonths} months
+- **Projected Revenue (18mo):** $${projectedRevenue.toLocaleString()}
 
 ## Competitive Analysis
 **Risk Level:** ${competitor_analysis.competitive_risk_level || 'UNKNOWN'}
 **Key Competitors:** ${competitor_analysis.key_competitors?.join(', ') || 'None'}
+**Expected Response Time:** ${responseTimeSprints} sprints (${responseTimeSprints * 2} weeks)
 
 ## Implementation Overview
 

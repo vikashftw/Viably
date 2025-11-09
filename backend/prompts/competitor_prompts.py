@@ -32,6 +32,8 @@ You MUST:
 
 Your JSON MUST follow this structure (all keys required even if values are best-effort):
 
+IMPORTANT: The "key_competitors" array MUST contain at least 3-5 competitors. For US banking features, always identify major banks (Chase, Bank of America, Wells Fargo, Capital One, US Bank) plus relevant fintech challengers.
+
 {
   "competitors": [
     {
@@ -41,7 +43,10 @@ Your JSON MUST follow this structure (all keys required even if values are best-
   ],
   "key_competitors": [
     "<competitor name 1>",
-    "<competitor name 2>"
+    "<competitor name 2>",
+    "<competitor name 3>",
+    "<competitor name 4>",
+    "<competitor name 5>"
   ],
   "market_maturity": "<emerging|growing|mature|declining>",
   "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
@@ -119,16 +124,34 @@ Context:
 
 Using ONLY this context and realistic market knowledge, produce a SINGLE JSON object that strictly matches this schema:
 
+CRITICAL: You MUST list at least 3-5 competitors. For US retail banking, major competitors typically include:
+Chase, Bank of America, Wells Fargo, Capital One, US Bank, Citibank, PNC (regional leaders), and emerging fintech challengers.
+
 {{
   "competitors": [
     {{
       "name": "<competitor name>",
       "market_position": "<leader|challenger|niche|new_entrant>"
+    }},
+    {{
+      "name": "<competitor name 2>",
+      "market_position": "<leader|challenger|niche|new_entrant>"
+    }},
+    {{
+      "name": "<competitor name 3>",
+      "market_position": "<leader|challenger|niche|new_entrant>"
+    }},
+    {{
+      "name": "<competitor name 4 - optional>",
+      "market_position": "<leader|challenger|niche|new_entrant>"
     }}
   ],
   "key_competitors": [
     "<competitor name 1>",
-    "<competitor name 2>"
+    "<competitor name 2>",
+    "<competitor name 3>",
+    "<competitor name 4>",
+    "<competitor name 5>"
   ],
   "market_maturity": "<emerging|growing|mature|declining>",
   "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
