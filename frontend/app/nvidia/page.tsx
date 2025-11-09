@@ -110,20 +110,6 @@ const AGENT_LABELS = AGENT_GROUPS.reduce<Record<string, string>>((acc, group) =>
   return acc;
 }, {});
 
-const AGENT_METADATA = AGENT_GROUPS.reduce<
-  Record<string, { wave: number; codename: string; groupLabel: string; signal: string }>
->((acc, group) => {
-  group.agents.forEach(agent => {
-    acc[agent.id] = {
-      wave: group.wave,
-      codename: group.codename,
-      groupLabel: group.label,
-      signal: agent.signal
-    };
-  });
-  return acc;
-}, {});
-
 const PROGRESS_RING_CIRCUMFERENCE = 2 * Math.PI * 54;
 
 export default function NVIDIATechnicalView() {
@@ -158,35 +144,6 @@ export default function NVIDIATechnicalView() {
     () => Object.values(agentStates).filter(a => a.status === 'completed').length,
     [agentStates]
   );
-
-  const processingStream = useMemo(() => {
-    const runningAgents = Object.entries(agentStates)
-      .filter(([, state]) => state.status === 'running')
-      .map(([id, state]) => ({
-        id,
-        label: AGENT_LABELS[id] || id,
-        progress: state.progress,
-        wave: AGENT_METADATA[id]?.wave,
-        groupLabel: AGENT_METADATA[id]?.groupLabel,
-        signal: AGENT_METADATA[id]?.signal || 'Processing'
-      }));
-
-    if (runningAgents.length > 0) {
-      return runningAgents.slice(0, 4);
-    }
-
-    return activityLog
-      .slice(-4)
-      .reverse()
-      .map((entry, idx) => ({
-        id: `log-${entry.ts}-${idx}`,
-        label: entry.message,
-        progress: 100,
-        wave: undefined,
-        groupLabel: 'Telemetry',
-        signal: 'Waiting'
-      }));
-  }, [activityLog, agentStates]);
 
   const pushActivity = (message: string) => {
     setActivityLog(prev => {
@@ -411,39 +368,6 @@ export default function NVIDIATechnicalView() {
                 <p className="text-xs text-slate-500">{stat.hint}</p>
               </div>
             ))}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="flex items-center justify-between text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">
-              <span>Real-time processing</span>
-              <span>{processingStream.length ? 'Active agents' : 'Awaiting feed'}</span>
-            </div>
-            {processingStream.length === 0 ? (
-              <p className="mt-4 text-xs text-slate-400">
-                Awaiting telemetry handshake · tap initiate to watch the agents engage.
-              </p>
-            ) : (
-              <div className="mt-3 flex flex-wrap gap-3">
-                {processingStream.map(item => (
-                  <div
-                    key={item.id}
-                    className="flex min-w-[140px] flex-1 flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3"
-                  >
-                    <div className="flex items-center justify-between text-xs text-slate-200">
-                      <span className="font-semibold">{item.label}</span>
-                      {item.wave && <span className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-500">W{item.wave}</span>}
-                    </div>
-                    <p className="text-[0.65rem] uppercase tracking-[0.4em] text-cyan-200/80">{item.signal}</p>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-violet-300 to-amber-200 transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.max(5, item.progress))}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-black/40 p-4">
