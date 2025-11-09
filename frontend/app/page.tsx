@@ -1,117 +1,104 @@
-'use client';
+import React, { useState } from 'react';
+import { MoreVertical } from 'lucide-react';
 
-import { useState, useEffect } from 'react';
-import { GitBranch, Sparkles } from 'lucide-react';
-import { JiraButton } from './components/JiraButton';
-import { BentoGrid } from './components/BentoGrid';
-import { AnalysisProvider } from './components/AnalysisProvider';
-import type { BacklogItem } from './components/Boxes/Box3';
+export const Box3 = ({ backlog }: { backlog: any[] }) => {
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [isCreatingPR, setIsCreatingPR] = useState<string | null>(null);
 
-export default function Dashboard() {
-  const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [backlog, setBacklog] = useState<BacklogItem[]>([]);
-  const [isMockData, setIsMockData] = useState(false);
+  // Filter out issues with status 'Done'
+  const filteredBacklog = backlog
+    ? backlog.filter(issue => issue.status !== 'Done')
+    : [];
 
-  useEffect(() => {
-    const checkJiraStatus = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/api/jira/status');
-        const data = await response.json();
-        setIsJiraConnected(data.connected);
-      } catch (error) {
-        console.error('Failed to fetch Jira status:', error);
-      }
-    };
-    checkJiraStatus();
-  }, []);
+  const handleMenuClick = (issueId: string) => {
+    setActiveMenu(prev => (prev === issueId ? null : issueId));
+  };
 
-  useEffect(() => {
-    // Only fetch real Jira data if connected and NOT using mock data
-    if (isJiraConnected && !isMockData) {
-      const fetchBacklog = async () => {
-        try {
-          const response = await fetch('http://localhost:8000/api/jira/backlog');
-          const data = await response.json();
-          console.log('Jira Backlog:', data);
-          setBacklog((data.issues as BacklogItem[]) || []);
-        } catch (error) {
-          console.error('Failed to fetch Jira backlog:', error);
-        }
+  const handleCreatePR = async (issue: any) => {
+    setIsCreatingPR(issue.id);
+    try {
+      const viablyAnalysis = {
+        feature_name: issue.summary,
+        description: `Implementation for Jira issue: ${issue.id} - ${issue.summary}`,
+        engineer_analysis: {},
+        competitor_analysis: {},
+        similar_features: {},
+        roi_projections: {},
+        overall_recommendation: {},
+        upskilling_insights: {}
       };
-      fetchBacklog();
-    }
-  }, [isJiraConnected, isMockData]);
 
-  const handleConnect = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/jira/connect');
-      const data = await response.json();
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
+      const response = await fetch('http://localhost:3002/api/implementation-flow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          viably_analysis: viablyAnalysis
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to create PR');
+      }
+
+      const result = await response.json();
+      if (result.pr_details?.url) {
+        window.open(result.pr_details.url, '_blank');
       }
     } catch (error) {
-      console.error('Failed to connect to Jira:', error);
+      console.error('Failed to create PR:', error);
+      alert(`Error creating PR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCreatingPR(null);
+      setActiveMenu(null); // Close menu after action
     }
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      await fetch('http://localhost:8000/api/jira/disconnect', { method: 'POST' });
-      setIsJiraConnected(false);
-      setBacklog([]);
-      setIsMockData(false);
-    } catch (error) {
-      console.error('Failed to disconnect from Jira:', error);
-    }
-  };
-
-  const loadMockData = () => {
-    // Mock Jira backlog items
-    const mockBacklog: BacklogItem[] = [
-      { id: 'VIA-101', summary: 'Implement user authentication system', status: 'In Progress' },
-      { id: 'VIA-102', summary: 'Design dashboard layout for analytics', status: 'To Do' },
-      { id: 'VIA-103', summary: 'Create API endpoints for data sync', status: 'To Do' },
-      { id: 'VIA-104', summary: 'Setup CI/CD pipeline for deployments', status: 'In Progress' },
-      { id: 'VIA-105', summary: 'Write unit tests for core modules', status: 'To Do' },
-      { id: 'VIA-106', summary: 'Optimize database queries for performance', status: 'To Do' },
-      { id: 'VIA-107', summary: 'Implement error logging and monitoring', status: 'In Progress' },
-      { id: 'VIA-108', summary: 'Add data validation on frontend forms', status: 'To Do' },
-    ];
-    setBacklog(mockBacklog);
-    setIsMockData(true); // Flag that we're using mock data
-    setIsJiraConnected(true); // Show as "connected" for UI purposes
   };
 
   return (
-    <div className="flex flex-col h-screen text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <GitBranch className="w-8 h-8 text-blue-600 dark:text-blue-500" />
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viably</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={loadMockData}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold text-sm transition-all shadow-lg hover:shadow-xl"
-            >
-              <Sparkles className="w-4 h-4" />
-              Load Test Data
-            </button>
-            <JiraButton
-              isJiraConnected={isJiraConnected}
-              handleConnect={handleConnect}
-              handleDisconnect={handleDisconnect}
-            />
-          </div>
+    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 h-full shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 hover:border-slate-600 flex flex-col">
+      <h2 className="text-lg font-semibold text-white mb-4 flex-shrink-0">Jira Backlog</h2>
+      <div className="overflow-y-auto h-[30rem]">
+        <div className="space-y-2">
+          {filteredBacklog && filteredBacklog.length > 0 ? (
+            filteredBacklog.map((issue: any) => (
+              <div key={issue.id} className="bg-slate-700/50 px-3 py-2 rounded-md w-full text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors h-[4.6rem] flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-white truncate">{issue.summary || 'No summary'}</p>
+                  <p className="text-xs text-slate-400">{issue.id}</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={`flex items-center space-x-2 transition-all duration-300 ease-in-out overflow-hidden ${
+                      activeMenu === issue.id ? 'max-w-xs' : 'max-w-0'
+                    }`}
+                  >
+                    <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700">
+                      Market Research
+                    </button>
+                    <button
+                      onClick={() => handleCreatePR(issue)}
+                      disabled={isCreatingPR === issue.id}
+                      className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingPR === issue.id ? 'Creating...' : 'Create PR'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleMenuClick(issue.id)}
+                    className="p-2 rounded-full hover:bg-slate-600 text-slate-400 hover:text-white"
+                  >
+                    <MoreVertical className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-slate-400">No backlog items found.</p>
+            </div>
+          )}
         </div>
-      </header>
-
-      <main className="flex-grow p-6">
-        <AnalysisProvider>
-          <BentoGrid backlog={backlog} />
-        </AnalysisProvider>
-      </main>
+      </div>
     </div>
   );
-}
+};
