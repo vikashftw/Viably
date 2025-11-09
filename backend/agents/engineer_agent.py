@@ -49,11 +49,13 @@ class EngineerAgent(BaseAgent):
         Returns:
             Dictionary with cost estimate:
             {
-                "estimated_sprints": int,
-                "estimated_engineers": int,
-                "estimated_cost_usd": int,
-                "key_risks": [str],
-                "confidence": float
+                "cost": int,
+                "hours": int,
+                "duration_weeks": int,
+                "team_size": int,
+                "skills_required": [str],
+                "confidence": float,
+                "risks": [str]
             }
         """
         try:
@@ -79,24 +81,40 @@ class EngineerAgent(BaseAgent):
             )
 
             # Step 4: Parse response
-            result = self._parse_json_response(response)
+            llm_result = self._parse_json_response(response)
 
-            # Step 5: Validate and add metadata
-            result["similar_projects_found"] = len(similar_projects)
-            result["rag_mode"] = "vector_embeddings" if self.rag.use_embeddings else "keyword_matching"
+            # Step 5: Transform to standardized format
+            sprints = llm_result.get("estimated_sprints", 0)
+            engineers = llm_result.get("estimated_engineers", 0)
 
-            logger.info(f"Engineer Agent analysis complete: {result.get('estimated_sprints', 'N/A')} sprints, ${result.get('estimated_cost_usd', 'N/A'):,}")
-            return result
+            transformed_result = {
+                "cost": llm_result.get("estimated_cost_usd", 0),
+                "hours": sprints * 2 * 40 * engineers,
+                "duration_weeks": sprints * 2,
+                "team_size": engineers,
+                "skills_required": [],  # Not provided by LLM, can be enhanced
+                "confidence": llm_result.get("confidence", 0.0),
+                "risks": llm_result.get("key_risks", []),
+                "complexity": "unknown", # Not provided by LLM, can be enhanced
+                "similar_projects_found": len(similar_projects),
+                "rag_mode": "vector_embeddings" if self.rag.use_embeddings else "keyword_matching"
+            }
+
+            logger.info(f"Engineer Agent analysis complete: {sprints} sprints, ${transformed_result['cost']:,}")
+            return transformed_result
 
         except Exception as e:
             logger.error(f"Engineer Agent analysis failed: {str(e)}")
-            # Return fallback estimate
+            # Return fallback estimate in the standardized format
             return {
-                "estimated_sprints": 0,
-                "estimated_engineers": 0,
-                "estimated_cost_usd": 0,
-                "key_risks": [f"Analysis failed: {str(e)}"],
+                "cost": 0,
+                "hours": 0,
+                "duration_weeks": 0,
+                "team_size": 0,
+                "skills_required": [],
                 "confidence": 0.0,
+                "risks": [f"Analysis failed: {str(e)}"],
+                "complexity": "unknown",
                 "similar_projects_found": 0,
                 "rag_mode": "error",
                 "error": str(e)

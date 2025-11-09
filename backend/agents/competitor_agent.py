@@ -38,13 +38,7 @@ class CompetitorAgent(BaseAgent):
             **kwargs: Additional parameters (e.g., industry)
 
         Returns:
-            Dictionary with competitive analysis:
-            {
-                "key_competitors": [str],
-                "expected_response_time_sprints": int,
-                "response_play": str,
-                "competitive_risk_level": "LOW" | "MEDIUM" | "HIGH"
-            }
+            Dictionary with competitive analysis.
         """
         try:
             # Step 1: Perform web search
@@ -78,17 +72,20 @@ class CompetitorAgent(BaseAgent):
             result["search_performed"] = True
             result["search_results_count"] = len(search_results.split('\n'))
 
-            logger.info(f"Competitor Agent analysis complete: Risk level {result.get('competitive_risk_level', 'N/A')}")
+            logger.info(f"Competitor Agent analysis complete: Risk score {result.get('risk_score', 'N/A')}/10")
             return result
 
         except Exception as e:
             logger.error(f"Competitor Agent analysis failed: {str(e)}")
             # Return fallback analysis
             return {
-                "key_competitors": [],
-                "expected_response_time_sprints": 0,
-                "response_play": "Unknown due to error",
-                "competitive_risk_level": "MEDIUM",
+                "competitors": [],
+                "market_maturity": "unknown",
+                "strategic_recommendation": "avoid",
+                "risk_score": 5,
+                "time_to_replicate_months": 6,
+                "risk_factors": [f"Analysis failed: {str(e)}"],
+                "market_opportunity": {},
                 "search_performed": False,
                 "error": str(e)
             }
