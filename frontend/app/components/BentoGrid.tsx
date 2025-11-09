@@ -6,7 +6,7 @@ import { Box4 } from './Boxes/Box4';
 import { Box5 } from './Boxes/Box5';
 import { Box6 } from './Boxes/Box6';
 
-export const BentoGrid = () => {
+export const BentoGrid = ({ backlog }: { backlog: any[] }) => {
   return (
     <div className="grid grid-cols-3 grid-rows-3 gap-4 h-full">
       <div className="col-span-1 row-span-2">
@@ -15,8 +15,8 @@ export const BentoGrid = () => {
       <div className="col-span-1 row-span-1">
         <Box2 />
       </div>
-      <div className="col-span-1 row-span-2">
-        <Box3 />
+      <div className="col-span-1 row-span-2 min-h-0">
+        <Box3 backlog={backlog} />
       </div>
       <div className="col-span-1 row-span-1">
         <Box4 />

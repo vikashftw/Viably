@@ -7,6 +7,7 @@ import { BentoGrid } from './components/BentoGrid';
 
 export default function Dashboard() {
   const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [backlog, setBacklog] = useState([]);
 
   useEffect(() => {
     const checkJiraStatus = async () => {
@@ -28,6 +29,7 @@ export default function Dashboard() {
           const response = await fetch('http://localhost:8000/api/jira/backlog');
           const data = await response.json();
           console.log('Jira Backlog:', data);
+          setBacklog(data.issues || []);
         } catch (error) {
           console.error('Failed to fetch Jira backlog:', error);
         }
@@ -76,7 +78,7 @@ export default function Dashboard() {
       </header>
 
       <main className="flex-grow p-6">
-        <BentoGrid />
+        <BentoGrid backlog={backlog} />
       </main>
     </div>
   );
