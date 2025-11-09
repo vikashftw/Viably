@@ -1,0 +1,132 @@
+[
+  {
+    "feature_type": "crypto_payments",
+    "competitors": [
+      {
+        "name": "Coinbase Commerce",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2021-Q2"
+      },
+      {
+        "name": "Stripe Crypto",
+        "market_position": "emerging",
+        "has_feature": true,
+        "feature_maturity": "beta",
+        "announced_date": "2024-Q4"
+      },
+      {
+        "name": "PayPal Crypto",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2020-Q4"
+      }
+    ]
+  },
+  {
+    "feature_type": "biometric_auth",
+    "competitors": [
+      {
+        "name": "Apple Face ID / Touch ID",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2017"
+      },
+      {
+        "name": "Google Android Biometrics",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2015"
+      },
+      {
+        "name": "Chase Mobile App",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2019"
+      }
+    ]
+  },
+  {
+    "feature_type": "expense_categorization",
+    "competitors": [
+      {
+        "name": "Mint",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2007"
+      },
+      {
+        "name": "YNAB (You Need A Budget)",
+        "market_position": "niche",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2004"
+      },
+      {
+        "name": "Personal Capital",
+        "market_position": "emerging",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2011"
+      }
+    ]
+  },
+  {
+    "feature_type": "fraud_detection",
+    "competitors": [
+      {
+        "name": "Visa Advanced Authorization",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2016"
+      },
+      {
+        "name": "Mastercard Decision Intelligence",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2017"
+      },
+      {
+        "name": "Capital One Eno",
+        "market_position": "emerging",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2019"
+      }
+    ]
+  },
+  {
+    "feature_type": "p2p_transfers",
+    "competitors": [
+      {
+        "name": "Venmo",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2009"
+      },
+      {
+        "name": "Cash App",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2013"
+      },
+      {
+        "name": "Zelle",
+        "market_position": "leader",
+        "has_feature": true,
+        "feature_maturity": "production",
+        "time_to_market": "2017"
+      }
+    ]
+  }
+]
