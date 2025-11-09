@@ -1,4 +1,5 @@
 import React from 'react';
+import { MoreVertical } from 'lucide-react';
 
 export const Box3 = ({ backlog }: { backlog: any[] }) => {
   // Filter out issues with status 'Done'
@@ -13,9 +14,14 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
         <div className="space-y-2">
           {filteredBacklog && filteredBacklog.length > 0 ? (
             filteredBacklog.map((issue: any) => (
-              <div key={issue.id} className="bg-slate-700/50 p-3 rounded-md w-full text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors h-[4.6rem] flex flex-col justify-center">
-                <p className="font-medium text-white truncate">{issue.summary || 'No summary'}</p>
-                <p className="text-xs text-slate-400">{issue.id}</p>
+              <div key={issue.id} className="bg-slate-700/50 px-3 py-2 rounded-md w-full text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors h-[4.6rem] flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-white truncate">{issue.summary || 'No summary'}</p>
+                  <p className="text-xs text-slate-400">{issue.id}</p>
+                </div>
+                <button className="p-2 rounded-full hover:bg-slate-600 text-slate-400 hover:text-white">
+                  <MoreVertical className="w-5 h-5" />
+                </button>
               </div>
             ))
           ) : (
