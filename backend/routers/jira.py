@@ -106,29 +106,50 @@ async def get_jira_backlog():
         if not access_token:
             raise HTTPException(status_code=401, detail="Invalid token.")
 
-        auth_header = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
-        
-        # Construct the correct API URL
-        api_url = f"https://api.atlassian.com/ex/jira/{cloud_id_storage}/rest/api/2/search"
-        
-        # JQL to get issues
-        jql = 'ORDER BY created DESC'
-        params = {'jql': jql, 'maxResults': 50}
+        auth_header = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
 
-        response = requests.get(api_url, headers=auth_header, params=params)
-        response.raise_for_status()
-        
+        # Construct the correct API URL (using new v3 endpoint)
+        api_url = f"https://api.atlassian.com/ex/jira/{cloud_id_storage}/rest/api/3/search/jql"
+
+        # JQL to get issues - v3 endpoint requires POST with JSON body
+        # Jira Cloud requires bounded queries, so we filter by recent issues
+        # Must explicitly request fields in v3 API
+        payload = {
+            'jql': 'created >= -90d order by created DESC',
+            'maxResults': 50,
+            'fields': ['key', 'summary', 'status']
+        }
+
+        response = requests.post(api_url, headers=auth_header, json=payload)
+
+        # Better error handling - show Jira's error message
+        if response.status_code != 200:
+            error_detail = response.text
+            raise HTTPException(status_code=500, detail=f"Jira API error ({response.status_code}): {error_detail}")
+
         jira_data = response.json()
-        
+
+        # Log the raw response to debug
+        print(f"DEBUG: Jira API response: {jira_data}")
+
         all_issues = []
-        for issue in jira_data.get('issues', []):
+        # Try both 'values' and 'issues' fields
+        issues_list = jira_data.get('values', jira_data.get('issues', []))
+
+        for issue in issues_list:
             all_issues.append({
                 "id": issue.get('key'),
                 "summary": issue.get('fields', {}).get('summary'),
                 "status": issue.get('fields', {}).get('status', {}).get('name')
             })
-        
-        return {"issues": all_issues}
+
+        return {"issues": all_issues, "total": len(all_issues), "raw_count": jira_data.get('total', 0)}
+    except HTTPException:
+        raise
     except Exception as e:
         # It's possible the token expired. For a full implementation, you'd refresh it here.
         raise HTTPException(status_code=500, detail=f"Failed to fetch Jira backlog: {str(e)}")
