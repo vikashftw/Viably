@@ -1,11 +1,19 @@
 import { Octokit } from '@octokit/rest';
 import { generateScaffold } from './scaffold-generator.js';
 
-const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN
-});
+// Lazy initialization to ensure dotenv has loaded
+let octokit = null;
+function getOctokit() {
+  if (!octokit) {
+    octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN
+    });
+  }
+  return octokit;
+}
 
 export async function createPullRequest(targetRepo, implementation, assignments, viablyAnalysis) {
+  const octokit = getOctokit();
   const { owner, repo, branch: baseBranch } = targetRepo;
   const featureBranch = `feature/${sanitizeBranchName(viablyAnalysis.feature_name)}`;
 

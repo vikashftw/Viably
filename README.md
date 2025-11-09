@@ -1,31 +1,34 @@
-# Viably
+# Viably - AI Product Sandbox War Game
 
-This document contains instructions for running the components updated in the recent changes.
+**NVIDIA + PNC Hackathon Project**
 
-## Running the Backend API
+## Quick Start
 
-The backend is a FastAPI application. To run the development server, follow these steps:
-
-1.  Navigate to the backend directory:
-    ```bash
-    cd backend
-    ```
-
-2.  Activate the virtual environment:
-    ```bash
-    .\venv\Scripts\activate
-    ```
-
-3.  Start the server:
-    ```bash
-    uvicorn main:app --reload
-    ```
-    The API will be available at `http://localhost:8000`.
-
-## Running Backend Tests
-
-To verify the agent functionality, you can run the test script. Execute the following command from the project's root directory:
-
+1. **Backend** (port 8000):
 ```bash
-.\backend\venv\Scripts\python.exe backend\test_agents.py
+cd backend
+python main.py
 ```
+
+2. **Automation Service** (port 3002):
+```bash
+cd automation-service
+npm start
+```
+
+3. **Frontend** (port 3000):
+```bash
+cd frontend
+npm run dev
+```
+
+## Demo
+- Input feature → 6 AI agents analyze (10s) → Generate PR (25s) → GitHub PR created (5s)
+- **Total: ~40 seconds from idea to working PR**
+
+## Documentation
+- See `CLAUDE.md` for complete project details
+- Each service has its own README with setup instructions
+
+---
+Built by ULTRATHINK Multi-Agent System

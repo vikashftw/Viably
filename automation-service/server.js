@@ -24,10 +24,23 @@ app.get('/health', (req, res) => {
 
 app.post('/api/implementation-flow', async (req, res) => {
   try {
-    const { viably_analysis, target_repo, search_context } = req.body;
+    const { viably_analysis, search_context } = req.body;
 
-    if (!viably_analysis || !target_repo) {
-      return res.status(400).json({ error: 'Missing required fields: viably_analysis, target_repo' });
+    // Use target_repo from request or fall back to .env defaults
+    const target_repo = req.body.target_repo || {
+      owner: process.env.TARGET_REPO_OWNER,
+      repo: process.env.TARGET_REPO_NAME,
+      branch: process.env.TARGET_REPO_BRANCH || 'main'
+    };
+
+    if (!viably_analysis) {
+      return res.status(400).json({ error: 'Missing required field: viably_analysis' });
+    }
+
+    if (!target_repo.owner || !target_repo.repo) {
+      return res.status(400).json({
+        error: 'Missing target repo. Provide target_repo in request or set TARGET_REPO_OWNER/TARGET_REPO_NAME in .env'
+      });
     }
 
     console.log('\n=== IMPLEMENTATION FLOW STARTED ===');

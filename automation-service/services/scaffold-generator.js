@@ -18,25 +18,134 @@ export function generateScaffold(file, viablyAnalysis) {
 
 function generateTSXComponent(path, header, purpose) {
   const componentName = getComponentName(path);
-  return `${header}import React from 'react';
+  return `${header}import React, { useState, useEffect } from 'react';
 
 interface ${componentName}Props {
-  // TODO: Define props
+  userId?: string;
+  onComplete?: () => void;
 }
 
-export const ${componentName}: React.FC<${componentName}Props> = (props) => {
+/**
+ * ${componentName} Component
+ * Purpose: ${purpose}
+ */
+export const ${componentName}: React.FC<${componentName}Props> = ({ userId, onComplete }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // TODO: Initialize component
+    console.log('${componentName} mounted');
+  }, []);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      // TODO: Implement ${purpose}
+      console.log('Processing...');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div>
-      <h1>${componentName}</h1>
-      {/* TODO: Implement ${purpose} */}
+    <div className="${componentName.toLowerCase()}-container">
+      <h2>${componentName}</h2>
+      {error && <div className="error">{error}</div>}
+      <button onClick={handleSubmit} disabled={loading}>
+        {loading ? 'Processing...' : 'Submit'}
+      </button>
+      {/* TODO: Add additional UI elements for ${purpose} */}
     </div>
   );
 };
+
+export default ${componentName};
 `;
 }
 
 function generateTypeScriptFile(path, header, purpose) {
   const moduleName = getComponentName(path);
+  const isService = path.includes('service');
+  const isAPI = path.includes('api');
+
+  if (isAPI) {
+    return `${header}import axios, { AxiosInstance } from 'axios';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export class ${moduleName} {
+  private client: AxiosInstance;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  /**
+   * ${purpose}
+   */
+  async execute(params: any): Promise<any> {
+    try {
+      const response = await this.client.post('/api/endpoint', params);
+      return response.data;
+    } catch (error) {
+      console.error('API error:', error);
+      throw error;
+    }
+  }
+
+  // TODO: Add additional API methods
+}
+
+export default new ${moduleName}();
+`;
+  }
+
+  if (isService) {
+    return `${header}/**
+ * ${moduleName} Service
+ * Purpose: ${purpose}
+ */
+export class ${moduleName} {
+  private initialized: boolean = false;
+
+  constructor() {
+    this.initialize();
+  }
+
+  private initialize(): void {
+    // TODO: Initialize service
+    this.initialized = true;
+  }
+
+  async process(data: any): Promise<any> {
+    if (!this.initialized) {
+      throw new Error('Service not initialized');
+    }
+
+    try {
+      // TODO: Implement ${purpose}
+      return { success: true, data };
+    } catch (error) {
+      console.error('Service error:', error);
+      throw error;
+    }
+  }
+
+  // TODO: Add business logic methods
+}
+
+export default new ${moduleName}();
+`;
+  }
+
   return `${header}export class ${moduleName} {
   constructor() {
     // TODO: Initialize

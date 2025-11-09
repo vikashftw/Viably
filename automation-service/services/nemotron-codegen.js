@@ -5,9 +5,9 @@
  */
 
 const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
-const NEMOTRON_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct';
-const TEMPERATURE = 0.3;
-const MAX_TOKENS = 4096;
+const NEMOTRON_MODEL = process.env.NEMOTRON_MODEL || 'nvidia/llama-3.1-nemotron-nano-vl-8b-v1';
+const TEMPERATURE = 0.2; // Lower for faster, more focused responses
+const MAX_TOKENS = 2048; // Reduced for faster response while maintaining quality
 
 /**
  * Generate implementation plan from Viably analysis and codebase search
@@ -42,10 +42,19 @@ export async function generateImplementation(viablyAnalysis, searchResults) {
     });
 
     if (!response.ok) {
-      throw new Error(`NVIDIA API error: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error('[Nemotron] API Error Response:', errorBody);
+      throw new Error(`NVIDIA API error: ${response.status} ${response.statusText} - ${errorBody}`);
     }
 
     const data = await response.json();
+    console.log('[Nemotron] API Response:', JSON.stringify(data, null, 2));
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[Nemotron] Invalid response structure:', data);
+      throw new Error('Invalid response structure from NVIDIA API');
+    }
+
     const responseText = data.choices[0].message.content;
 
     console.log('[Nemotron] Received response, parsing...');
@@ -111,57 +120,26 @@ function buildImplementationPrompt(viablyAnalysis, searchResults) {
   const baseCase = roi_scenarios?.base_case || {};
   const { files_found = [], is_new_feature = true } = searchResults;
 
-  return `Create a detailed implementation plan for this banking feature:
+  const featureSlug = sanitizeFeatureName(feature_name);
 
-FEATURE DETAILS:
-Feature Name: ${feature_name}
-Description: ${viablyAnalysis.feature_description || 'No description provided'}
-Target User: ${viablyAnalysis.target_user || 'PNC customers'}
-Business Goal: ${viablyAnalysis.business_goal || 'Increase engagement'}
+  return `Create implementation plan for: ${feature_name}
 
-ENGINEER ANALYSIS:
-- Estimated Cost: $${estimated_cost_usd.toLocaleString()}
-- Duration: ${estimated_sprints} sprints (${estimated_sprints * 2} weeks)
-- Team Size: ${estimated_engineers} engineers
-- Key Risks: ${key_risks.join(', ')}
+SCOPE: $${estimated_cost_usd.toLocaleString()}, ${estimated_sprints} sprints, ${estimated_engineers} engineers
+${is_new_feature ? 'NEW feature' : `Related: ${files_found.slice(0, 3).join(', ')}`}
 
-SIMILAR PNC PROJECTS:
-${similarProjects.slice(0, 3).map(p =>
-  `- ${p.name}: $${p.cost?.toLocaleString() || 'N/A'}, Similarity: ${((p.similarity_score || 0) * 100).toFixed(0)}%`
-).join('\n')}
-
-ROI PROJECTION:
-- Base Case ROI: ${baseCase.roi_percent || 0}%
-- Payback Period: ${baseCase.payback_period_months || 'N/A'} months
-
-CODEBASE SEARCH:
-${is_new_feature ? 'NEW feature (no existing code)' : `Related files: ${files_found.slice(0, 5).join(', ')}`}
-
-Generate a JSON implementation plan with this structure:
+Generate JSON (no markdown):
 {
   "file_structure": [
-    {
-      "path": "src/features/example/Component.tsx",
-      "type": "component|service|api|test",
-      "purpose": "Brief description",
-      "estimated_lines": 150
-    }
+    {"path": "src/features/${featureSlug}/SmartComponent.tsx", "type": "component", "purpose": "Main UI", "estimated_lines": 200},
+    {"path": "src/features/${featureSlug}/service.ts", "type": "service", "purpose": "Business logic", "estimated_lines": 150},
+    {"path": "src/features/${featureSlug}/api.ts", "type": "api", "purpose": "Backend calls", "estimated_lines": 100},
+    {"path": "src/features/${featureSlug}/__tests__/component.test.tsx", "type": "test", "purpose": "Tests", "estimated_lines": 80}
   ],
-  "tasks": [
-    {
-      "id": "task_001",
-      "title": "Implement component",
-      "description": "Detailed description",
-      "skills_required": ["mobile", "frontend"],
-      "estimated_hours": 16,
-      "priority": "high|medium|low",
-      "dependencies": []
-    }
-  ]
+  "tasks": [{"id": "task_001", "title": "Build X", "description": "Detailed steps", "skills_required": ["mobile"], "estimated_hours": 16, "priority": "high", "dependencies": []}]
 }
 
-Generate 5-8 files and 10-12 tasks based on ${estimated_sprints} sprints and ${estimated_engineers} engineers.
-Return ONLY the JSON object, no markdown.`;
+IMPORTANT: Use specific file names (not "File.tsx"). Base names on feature: "${feature_name}".
+Generate 5-8 files, 8-10 tasks. Return ONLY valid JSON.`;
 }
 
 /**

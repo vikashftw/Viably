@@ -1,0 +1,40 @@
+{
+  "viably_analysis": {
+    "feature_name": "Test Viably Integration",
+    "feature_description": "Testing automated PR creation from Viably",
+    "engineer_analysis": {
+      "estimated_cost_usd": 50000,
+      "estimated_sprints": 3,
+      "estimated_engineers": 2,
+      "key_risks": ["Integration testing", "API connectivity"],
+      "confidence": 0.8
+    },
+    "competitor_analysis": {
+      "key_competitors": ["Bank of America", "Wells Fargo"],
+      "competitive_risk_level": "LOW"
+    },
+    "roi_scenarios": {
+      "base_case": {
+        "roi_percent": 200,
+        "payback_period_months": 6
+      }
+    },
+    "similar_features": {
+      "similar_projects": [
+        {"name": "Mobile Banking", "similarity_score": 0.75, "cost": 40000}
+      ]
+    },
+    "upskilling_insights": {
+      "bottleneck_skills": ["react", "nodejs"]
+    }
+  },
+  "target_repo": {
+    "owner": "Deepeshbhatia16",
+    "repo": "PNC-Smart-Branch",
+    "branch": "main"
+  },
+  "search_context": {
+    "search_patterns": ["test", "api"],
+    "file_types": ["tsx", "ts"]
+  }
+}
