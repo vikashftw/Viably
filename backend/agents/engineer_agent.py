@@ -49,16 +49,11 @@ class EngineerAgent(BaseAgent):
         Returns:
             Dictionary with cost estimate:
             {
-                "hours": int,
-                "cost": int,
-                "duration_weeks": int,
-                "team_size": int,
-                "skills_required": [str],
-                "complexity": str,
-                "confidence": float,
-                "breakdown": {...},
-                "risks": [str],
-                "assumptions": [str]
+                "estimated_sprints": int,
+                "estimated_engineers": int,
+                "estimated_cost_usd": int,
+                "key_risks": [str],
+                "confidence": float
             }
         """
         try:
@@ -90,22 +85,19 @@ class EngineerAgent(BaseAgent):
             result["similar_projects_found"] = len(similar_projects)
             result["rag_mode"] = "vector_embeddings" if self.rag.use_embeddings else "keyword_matching"
 
-            logger.info(f"Engineer Agent analysis complete: {result.get('hours', 'N/A')} hours, ${result.get('cost', 'N/A'):,}")
+            logger.info(f"Engineer Agent analysis complete: {result.get('estimated_sprints', 'N/A')} sprints, ${result.get('estimated_cost_usd', 'N/A'):,}")
             return result
 
         except Exception as e:
             logger.error(f"Engineer Agent analysis failed: {str(e)}")
             # Return fallback estimate
             return {
-                "hours": 0,
-                "cost": 0,
-                "duration_weeks": 0,
-                "team_size": 0,
-                "skills_required": [],
-                "complexity": "unknown",
+                "estimated_sprints": 0,
+                "estimated_engineers": 0,
+                "estimated_cost_usd": 0,
+                "key_risks": [f"Analysis failed: {str(e)}"],
                 "confidence": 0.0,
-                "breakdown": {},
-                "risks": [f"Analysis failed: {str(e)}"],
-                "assumptions": ["Fallback estimate due to error"],
+                "similar_projects_found": 0,
+                "rag_mode": "error",
                 "error": str(e)
             }

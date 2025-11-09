@@ -75,38 +75,19 @@ Description:
 Analyze the competitive landscape and provide assessment in the following JSON format:
 
 {{
-    "competitors": [
-        {{
-            "name": "<competitor name>",
-            "market_position": "<leader/emerging/niche>",
-            "has_feature": <true/false>,
-            "feature_maturity": "<none/beta/production>",
-            "key_differentiators": [<array of 1-2 strings>]
-        }}
-    ],
-    "market_maturity": "<emerging/growing/mature/saturated>",
-    "time_to_replicate": "<estimation like '2-4 weeks', '2-3 months', '6+ months'>",
-    "barriers_to_entry": {{
-        "technical_complexity": "<low/medium/high>",
-        "regulatory_requirements": "<none/moderate/strict>",
-        "capital_requirements": "<low/medium/high>",
-        "network_effects": "<weak/moderate/strong>"
-    }},
-    "risk_score": <overall competitive risk 0-10, integer>,
-    "risk_factors": [<array of 2-3 key risk factors as strings>],
-    "strategic_recommendation": "<first_mover/fast_follower/differentiate/avoid>",
-    "recommendation_rationale": "<1-2 sentence explanation>",
-    "market_opportunity": {{
-        "size": "<small/medium/large>",
-        "growth_rate": "<declining/stable/growing/rapid>",
-        "urgency": "<low/medium/high/critical>"
-    }}
+    "key_competitors": [<array of 2-5 competitor names as strings>],
+    "expected_response_time_sprints": <how many 2-week sprints for competitors to match (integer)>,
+    "response_play": "<short description of how competitors would respond>",
+    "competitive_risk_level": "LOW" | "MEDIUM" | "HIGH"
 }}
 
-Base your analysis on:
-1. Actual competitors found in search results
-2. Market dynamics and trends
-3. Technical feasibility and barriers
-4. Strategic timing considerations
+Rules:
+- key_competitors: List 2-5 well-known, believable competitors
+- expected_response_time_sprints: In 2-week sprints, how quickly serious competitors could match
+- response_play: How they'd respond (discounts, bundling, similar feature, partnerships, etc.) - keep short but specific
+- competitive_risk_level:
+  - "HIGH" if easy to copy AND strong competitors exist
+  - "MEDIUM" if copyable with some friction
+  - "LOW" if defensible, complex, or niche
 
-Be objective and data-driven. Highlight both opportunities and risks."""
+Base your analysis on actual competitors found in search results and market dynamics."""

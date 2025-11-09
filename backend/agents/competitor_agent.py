@@ -40,15 +40,10 @@ class CompetitorAgent(BaseAgent):
         Returns:
             Dictionary with competitive analysis:
             {
-                "competitors": [...],
-                "market_maturity": str,
-                "time_to_replicate": str,
-                "barriers_to_entry": {...},
-                "risk_score": int,
-                "risk_factors": [str],
-                "strategic_recommendation": str,
-                "recommendation_rationale": str,
-                "market_opportunity": {...}
+                "key_competitors": [str],
+                "expected_response_time_sprints": int,
+                "response_play": str,
+                "competitive_risk_level": "LOW" | "MEDIUM" | "HIGH"
             }
         """
         try:
@@ -83,31 +78,17 @@ class CompetitorAgent(BaseAgent):
             result["search_performed"] = True
             result["search_results_count"] = len(search_results.split('\n'))
 
-            logger.info(f"Competitor Agent analysis complete: Risk score {result.get('risk_score', 'N/A')}/10")
+            logger.info(f"Competitor Agent analysis complete: Risk level {result.get('competitive_risk_level', 'N/A')}")
             return result
 
         except Exception as e:
             logger.error(f"Competitor Agent analysis failed: {str(e)}")
             # Return fallback analysis
             return {
-                "competitors": [],
-                "market_maturity": "unknown",
-                "time_to_replicate": "unknown",
-                "barriers_to_entry": {
-                    "technical_complexity": "unknown",
-                    "regulatory_requirements": "unknown",
-                    "capital_requirements": "unknown",
-                    "network_effects": "unknown"
-                },
-                "risk_score": 5,
-                "risk_factors": [f"Analysis failed: {str(e)}"],
-                "strategic_recommendation": "unknown",
-                "recommendation_rationale": "Unable to complete analysis due to error",
-                "market_opportunity": {
-                    "size": "unknown",
-                    "growth_rate": "unknown",
-                    "urgency": "unknown"
-                },
+                "key_competitors": [],
+                "expected_response_time_sprints": 0,
+                "response_play": "Unknown due to error",
+                "competitive_risk_level": "MEDIUM",
                 "search_performed": False,
                 "error": str(e)
             }

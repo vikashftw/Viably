@@ -80,26 +80,21 @@ Description:
 {feature_description}
 {similar_context}
 
-Provide a detailed cost estimate in the following JSON format:
+Provide a cost estimate in the following JSON format:
 
 {{
-    "hours": <total engineering hours (integer)>,
-    "cost": <total cost in USD (integer, using $150/hour)>,
-    "duration_weeks": <estimated timeline in weeks (integer)>,
-    "team_size": <recommended team size (integer, 1-10)>,
-    "skills_required": [<array of required skills/roles as strings>],
-    "complexity": "<low/medium/high>",
-    "confidence": <confidence in estimate, 0.0-1.0 (float)>,
-    "breakdown": {{
-        "architecture_design": <hours>,
-        "implementation": <hours>,
-        "testing": <hours>,
-        "security_review": <hours>,
-        "documentation": <hours>,
-        "deployment": <hours>
-    }},
-    "risks": [<array of 2-3 key technical risks as strings>],
-    "assumptions": [<array of 2-3 key assumptions as strings>]
+    "estimated_sprints": <number of 2-week sprints (integer)>,
+    "estimated_engineers": <number of engineers needed (integer)>,
+    "estimated_cost_usd": <total cost (sprints * engineers * 12000)>,
+    "key_risks": [<array of 2-4 specific technical or delivery risks>],
+    "confidence": <confidence between 0.6-0.95 (float)>
 }}
+
+Rules:
+- Use realistic sprint counts (no 0 sprints, no miracles)
+- Cost formula: estimated_sprints * estimated_engineers * 12000
+- Higher confidence (0.85-0.95) for standard features
+- Lower confidence (0.6-0.75) for complex/new/ambiguous features
+- Tailor risks to the specific feature (security, infrastructure, integrations, etc.)
 
 Be realistic. Account for complexity, edge cases, and integration challenges."""
