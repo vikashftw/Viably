@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 
 export const Box3 = ({ backlog }: { backlog: any[] }) => {
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
   // Filter out issues with status 'Done'
   const filteredBacklog = backlog
     ? backlog.filter(issue => issue.status !== 'Done')
     : [];
+
+  const handleMenuClick = (issueId: string) => {
+    setActiveMenu(prev => (prev === issueId ? null : issueId));
+  };
 
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 h-full shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 hover:border-slate-600 flex flex-col">
@@ -19,9 +25,26 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
                   <p className="font-medium text-white truncate">{issue.summary || 'No summary'}</p>
                   <p className="text-xs text-slate-400">{issue.id}</p>
                 </div>
-                <button className="p-2 rounded-full hover:bg-slate-600 text-slate-400 hover:text-white">
-                  <MoreVertical className="w-5 h-5" />
-                </button>
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={`flex items-center space-x-2 transition-all duration-300 ease-in-out overflow-hidden ${
+                      activeMenu === issue.id ? 'max-w-xs' : 'max-w-0'
+                    }`}
+                  >
+                    <button className="bg-sky-600 text-white px-3 py-1 rounded-md text-xs whitespace-nowrap hover:bg-sky-700">
+                      Market Research
+                    </button>
+                    <button className="bg-blue-600 text-white px-3 py-1 rounded-md text-xs whitespace-nowrap hover:bg-blue-700">
+                      Create PR
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleMenuClick(issue.id)}
+                    className="p-2 rounded-full hover:bg-slate-600 text-slate-400 hover:text-white"
+                  >
+                    <MoreVertical className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             ))
           ) : (
