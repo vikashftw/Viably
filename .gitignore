@@ -62,3 +62,4 @@ logs/
 GEMINI.md
 CLAUDE.md
 /backend/data/analysis_history
+./gemini

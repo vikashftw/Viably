@@ -19,6 +19,33 @@ export default function Dashboard() {
     checkJiraStatus();
   }, []);
 
+  useEffect(() => {
+    if (isJiraConnected) {
+      const fetchBacklog = async () => {
+        try {
+          const response = await fetch('http://localhost:8000/api/jira/backlog');
+          const data = await response.json();
+          console.log('Jira Backlog:', data);
+        } catch (error) {
+          console.error('Failed to fetch Jira backlog:', error);
+        }
+      };
+      fetchBacklog();
+    }
+  }, [isJiraConnected]);
+
+  const handleConnect = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/jira/connect');
+      const data = await response.json();
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } catch (error) {
+      console.error('Failed to connect to Jira:', error);
+    }
+  };
+
   const handleDisconnect = async () => {
     try {
       await fetch('http://localhost:8000/api/jira/disconnect', { method: 'POST' });
@@ -68,13 +95,13 @@ export default function Dashboard() {
                 <span>Disconnect from Jira</span>
               </button>
             ) : (
-              <a
-                href="http://localhost:8000/api/jira/connect"
+              <button
+                onClick={handleConnect}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center space-x-2 transition duration-300"
               >
                 <Zap className="w-5 h-5" />
                 <span>Connect to Jira</span>
-              </a>
+              </button>
             )}
           </div>
           
@@ -138,7 +165,7 @@ export default function Dashboard() {
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
                     <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Estimated Cost</p>
-                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-200 mt-1">$120K</p>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-200 mt-1">20K</p>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Predicted Sentiment</p>
