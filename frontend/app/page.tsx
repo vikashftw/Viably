@@ -21,6 +21,21 @@ export default function Dashboard() {
     checkJiraStatus();
   }, []);
 
+  useEffect(() => {
+    if (isJiraConnected) {
+      const fetchBacklog = async () => {
+        try {
+          const response = await fetch('http://localhost:8000/api/jira/backlog');
+          const data = await response.json();
+          console.log('Jira Backlog:', data);
+        } catch (error) {
+          console.error('Failed to fetch Jira backlog:', error);
+        }
+      };
+      fetchBacklog();
+    }
+  }, [isJiraConnected]);
+
   const handleConnect = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/jira/connect');
