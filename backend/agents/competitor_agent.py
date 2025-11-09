@@ -91,9 +91,36 @@ class CompetitorAgent(BaseAgent):
             else:
                 result["search_results_count"] = 0
 
+            # Step 6: Ensure minimum competitor count with fallback
+            key_competitors = result.get("key_competitors", [])
+            if len(key_competitors) < 3:
+                logger.info(f"Only {len(key_competitors)} competitors found. Adding fallbacks.")
+
+                # Industry-specific fallback competitors
+                fallback_competitors = {
+                    "banking": ["JPMorgan Chase", "Bank of America", "Wells Fargo", "Capital One", "Citibank"],
+                    "fintech": ["Square", "Stripe", "PayPal", "Adyen", "Plaid"],
+                    "payments": ["Visa", "Mastercard", "PayPal", "Square", "Stripe"],
+                    "lending": ["SoFi", "LendingClub", "Prosper", "Upstart", "Affirm"],
+                    "wealth": ["Betterment", "Wealthfront", "Robinhood", "E*TRADE", "Charles Schwab"],
+                }
+
+                # Get fallbacks for this industry (default to banking)
+                industry_fallbacks = fallback_competitors.get(industry, fallback_competitors["banking"])
+
+                # Add fallbacks until we have 3-5 competitors
+                for competitor in industry_fallbacks:
+                    if competitor not in key_competitors and len(key_competitors) < 5:
+                        key_competitors.append(competitor)
+
+                result["key_competitors"] = key_competitors
+                result["fallback_competitors_added"] = True
+                logger.info(f"Final competitor list: {key_competitors}")
+
             logger.info(
                 f"Competitor Agent analysis complete: "
-                f"risk_score={result.get('risk_score', 'N/A')}"
+                f"risk_score={result.get('risk_score', 'N/A')}, "
+                f"competitors={len(key_competitors)}"
             )
             return result
 

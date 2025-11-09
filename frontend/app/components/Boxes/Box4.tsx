@@ -14,8 +14,9 @@ interface ActivityItem {
   icon: React.ReactNode;
 }
 
-export const Box4 = () => {
-  const { data, loading, error, refetch } = useAnalysisData();
+export const Box4 = ({ analysisData }: { analysisData?: any }) => {
+  const { data: fallbackData, loading, error, refetch } = useAnalysisData();
+  const data = analysisData || fallbackData;
 
   if (loading) {
     return <LoadingStateCard title="Activity Feed" />;

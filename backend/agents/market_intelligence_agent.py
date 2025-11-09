@@ -312,7 +312,16 @@ class MarketIntelligenceAgent:
         source_title = None
 
         size_pattern = r'\$?\s*(\d+\.?\d*)\s*(billion|B|trillion|T|million|M)'
-        cagr_pattern = r'(\d+\.?\d*)\s*%\s*(?:CAGR|growth|annually)'
+
+        # Enhanced CAGR patterns - try multiple variations
+        cagr_patterns = [
+            r'(\d+\.?\d*)\s*%\s*(?:CAGR|cagr)',  # "12% CAGR" or "12% cagr"
+            r'(\d+\.?\d*)\s*(?:percent|%)\s*(?:annual|yearly|per year)',  # "12 percent annual" or "12% per year"
+            r'compound.*?(?:growth|rate).*?(\d+\.?\d*)\s*%',  # "compound growth rate of 12%"
+            r'CAGR.*?(\d+\.?\d*)\s*(?:percent|%)',  # "CAGR of 12 percent"
+            r'grow.*?(?:at|by).*?(\d+\.?\d*)\s*(?:percent|%)',  # "grow at 12 percent" or "grow by 12%"
+            r'(\d+\.?\d*)\s*%\s*(?:growth|annually)',  # "12% growth" or "12% annually"
+        ]
 
         for result in organic_results[:3]:
             snippet = result.get("snippet", "")
@@ -334,14 +343,22 @@ class MarketIntelligenceAgent:
                     source_url = link
                     source_title = title
 
-            # CAGR
+            # CAGR - try multiple patterns
             if growth_rate_cagr is None:
-                cagr_match = re.search(cagr_pattern, snippet, re.IGNORECASE)
-                if cagr_match:
-                    growth_rate_cagr = float(cagr_match.group(1)) / 100.0
-                    if source_url is None:
-                        source_url = link
-                        source_title = title
+                for cagr_pattern in cagr_patterns:
+                    cagr_match = re.search(cagr_pattern, snippet, re.IGNORECASE)
+                    if cagr_match:
+                        try:
+                            rate_value = float(cagr_match.group(1))
+                            growth_rate_cagr = rate_value / 100.0
+                            logger.info(f"Extracted CAGR: {rate_value}% using pattern: {cagr_pattern}")
+                            if source_url is None:
+                                source_url = link
+                                source_title = title
+                            break  # Found CAGR, stop trying patterns
+                        except (ValueError, IndexError) as e:
+                            logger.debug(f"CAGR extraction failed for pattern {cagr_pattern}: {e}")
+                            continue
 
         if market_size_usd is None:
             market_size_usd = 0

@@ -16,8 +16,9 @@ const formatUsd = (value?: number) => {
   return `$${(value / 1_000).toFixed(0)}K`;
 };
 
-export const Box6 = () => {
-  const { data, loading, error, refetch } = useAnalysisData();
+export const Box6 = ({ analysisData }: { analysisData?: any }) => {
+  const { data: fallbackData, loading, error, refetch } = useAnalysisData();
+  const data = analysisData || fallbackData;
 
   if (loading) {
     return <LoadingStateCard title="Executive Summary" />;

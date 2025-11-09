@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AgentOrchestrationDashboard, { type AgentGroup } from './components/AgentOrchestrationDashboard';
 import AgentReasoningPanel from './components/AgentReasoningPanel';
+import { useSharedAnalysis } from '../hooks/useSharedAnalysis';
 
 interface AgentState {
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -121,6 +122,9 @@ export default function NVIDIATechnicalView() {
   const [lastEventTs, setLastEventTs] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Use shared analysis hook for broadcasting
+  const { events, latestEvent, startAnalysis: triggerSharedAnalysis, isRunning: sharedIsRunning } = useSharedAnalysis();
+
   const totalAgents = useMemo(
     () => AGENT_GROUPS.reduce((count, group) => count + group.agents.length, 0),
     []
@@ -153,7 +157,94 @@ export default function NVIDIATechnicalView() {
     setLastEventTs(Date.now());
   };
 
+  // Process shared analysis events
+  useEffect(() => {
+    if (!latestEvent) return;
+
+    const data = latestEvent;
+
+    switch (data.type) {
+      case 'start':
+        console.log('Analysis started');
+        setIsAnalyzing(true);
+        setAgentStates({});
+        setWaveTimings({});
+        setActivityLog([]);
+        pushActivity('orchestration initiated · launching agents');
+        break;
+
+      case 'agent_start':
+        const startName = AGENT_LABELS[data.agent || ''] || data.agent;
+        pushActivity(`${startName} · spinning up`);
+        setAgentStates(prev => ({
+          ...prev,
+          [data.agent!]: {
+            status: 'running',
+            progress: 5,
+            reasoning: ['Initializing agent systems...'],
+            confidence: 0,
+            tool_calls: [],
+            elapsed_ms: 0,
+            group_id: data.wave ? `wave-0${data.wave}` : undefined
+          }
+        }));
+        break;
+
+      case 'agent_complete':
+        const agentName = AGENT_LABELS[data.agent || ''] || data.agent;
+        const elapsedSec = ((data.result?.elapsed_ms || 0) / 1000).toFixed(1);
+        pushActivity(`${agentName} · sealed in ${elapsedSec}s`);
+
+        // Immediately set to completed state (skip animation for speed)
+        const reasoning = data.result?.reasoning || [];
+
+        setAgentStates(prev => ({
+          ...prev,
+          [data.agent!]: {
+            status: 'completed',
+            progress: 100,
+            reasoning: reasoning,
+            confidence: data.result?.confidence || 0.7,
+            tool_calls: data.result?.tool_calls || [],
+            elapsed_ms: data.result?.elapsed_ms || 0,
+            result: data.result,
+            group_id: prev[data.agent!]?.group_id
+          }
+        }));
+        break;
+
+      case 'wave_complete':
+        const waveDuration = ((data.duration_ms || 0) / 1000).toFixed(1);
+        pushActivity(`wave ${data.wave} · complete in ${waveDuration}s`);
+        setWaveTimings(prev => ({
+          ...prev,
+          [`wave${data.wave}_ms`]: data.duration_ms
+        }));
+        break;
+
+      case 'complete':
+        pushActivity('MISSION COMPLETE');
+        setIsAnalyzing(false);
+        setWaveTimings(data.wave_timings || {});
+        break;
+
+      case 'error':
+        pushActivity(`ERROR: ${data.message}`);
+        setIsAnalyzing(false);
+        break;
+    }
+  }, [latestEvent]);
+
   const startAnalysis = () => {
+    // Use the shared analysis hook instead of local EventSource
+    triggerSharedAnalysis(
+      'Smart Branch Connect',
+      'Hybrid banking experience connecting digital and in-branch services'
+    );
+  };
+
+  // Keep old local EventSource logic below for reference (can be deleted later)
+  const startAnalysisOLD = () => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }

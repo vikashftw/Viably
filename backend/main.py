@@ -24,6 +24,8 @@ from agents.similar_feature_agent import SimilarFeatureAgent
 from agents.roi_calculator_agent import ROICalculatorAgent
 from agents.implementation_planner_agent import ImplementationPlannerAgent
 from routers import jira
+from services.connection_manager import connection_manager
+from services.session_manager import session_manager
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -291,7 +293,7 @@ async def analyze_complete(request: CompleteAnalysisRequest):
         logger.error(f"Complete analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Complete analysis failed: {str(e)}")
 
-# NEW ENDPOINT: Stream analysis progress via Server-Sent Events
+# NEW ENDPOINT: Stream analysis progress via Server-Sent Events (BROADCASTING VERSION)
 @app.get("/api/analyze-stream")
 async def stream_analysis_progress(
     feature_name: str,
@@ -301,7 +303,9 @@ async def stream_analysis_progress(
     industry: str = "banking"
 ):
     """
-    Stream real-time analysis progress using Server-Sent Events (SSE).
+    Stream real-time analysis progress using Server-Sent Events (SSE) with BROADCASTING.
+
+    Multiple clients can connect and receive the same events from a single analysis execution.
 
     Returns agent execution events:
     - agent_start: When an agent begins execution
@@ -310,111 +314,60 @@ async def stream_analysis_progress(
     - wave_complete: When a wave of agents completes
     - complete: Final completion event
 
-    For NVIDIA Technical Dashboard live visualization.
+    For NVIDIA Technical Dashboard live visualization and PNC Dashboard updates.
     """
+    client_id = str(uuid.uuid4())
+
     async def event_generator():
         try:
-            analysis_start_time = time.time()
+            # Register this client
+            queue = await connection_manager.connect(client_id)
+            logger.info(f"Client {client_id} connected for feature: {feature_name}")
 
-            # Emit start event
-            yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
+            # Check if analysis already running for this feature
+            session_id = session_manager.get_active_session(feature_name)
 
-            # WAVE 1: Parallel execution (Engineer, Competitor, Market Intelligence)
-            wave1_start = time.time()
+            if not session_id:
+                # First subscriber - trigger the analysis
+                session_id = session_manager.create_session(feature_name, description)
+                logger.info(f"Starting new analysis session {session_id}")
 
-            # Emit wave 1 start events
-            for agent_name in ['engineer', 'competitor', 'market_intelligence']:
-                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'wave': 1, 'timestamp': time.time()})}\n\n"
-                await asyncio.sleep(0.01)  # Small delay for streaming
+                # Run analysis in background task (broadcasts to all subscribers)
+                asyncio.create_task(
+                    run_analysis_and_broadcast(
+                        session_id, feature_name, description, target_user,
+                        business_goal, industry
+                    )
+                )
+            else:
+                logger.info(f"Joining existing session {session_id}")
+                # Send a "joined" event to this client
+                await queue.put({
+                    "type": "session_joined",
+                    "session_id": session_id,
+                    "message": f"Joined active analysis for {feature_name}",
+                    "timestamp": time.time()
+                })
 
-            # Run Wave 1 agents in parallel
-            wave1_results = await asyncio.gather(
-                run_engineer_with_events(feature_name, description),
-                run_competitor_with_events(feature_name, description, industry),
-                run_market_intel_with_events(feature_name, industry)
-            )
+            # Stream events from queue (shared across all clients)
+            while True:
+                event = await queue.get()
 
-            # Emit Wave 1 completion events
-            for idx, agent_name in enumerate(['engineer', 'competitor', 'market_intelligence']):
-                result = wave1_results[idx]
-                yield f"data: {json.dumps({'type': 'agent_complete', 'agent': agent_name, 'wave': 1, 'result': result, 'timestamp': time.time()})}\n\n"
-                await asyncio.sleep(0.01)
+                yield f"data: {json.dumps(event)}\n\n"
 
-            wave1_duration = (time.time() - wave1_start) * 1000
-            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 1, 'duration_ms': wave1_duration, 'timestamp': time.time()})}\n\n"
+                # Break on completion
+                if event.get("type") == "complete":
+                    logger.info(f"Client {client_id} received completion event")
+                    break
 
-            # WAVE 2: Dependent execution (ROI, Similar Features - needs Engineer output)
-            wave2_start = time.time()
-            engineer_result = wave1_results[0]
-
-            for agent_name in ['roi_calculator', 'similar_features']:
-                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'wave': 2, 'timestamp': time.time()})}\n\n"
-                await asyncio.sleep(0.01)
-
-            # Run Wave 2 agents in parallel (both depend on Engineer)
-            wave2_results = await asyncio.gather(
-                run_roi_with_events(feature_name, engineer_result, industry),
-                run_similar_with_events(feature_name, description, engineer_result)
-            )
-
-            for idx, agent_name in enumerate(['roi_calculator', 'similar_features']):
-                result = wave2_results[idx]
-                yield f"data: {json.dumps({'type': 'agent_complete', 'agent': agent_name, 'wave': 2, 'result': result, 'timestamp': time.time()})}\n\n"
-                await asyncio.sleep(0.01)
-
-            wave2_duration = (time.time() - wave2_start) * 1000
-            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 2, 'duration_ms': wave2_duration, 'timestamp': time.time()})}\n\n"
-
-            # WAVE 3: Final synthesis (Implementation Planner - needs all outputs)
-            wave3_start = time.time()
-
-            yield f"data: {json.dumps({'type': 'agent_start', 'agent': 'implementation_planner', 'wave': 3, 'timestamp': time.time()})}\n\n"
-            await asyncio.sleep(0.01)
-
-            # Call REAL Implementation Planner Agent (Wave 3)
-            planner_start = time.time()
-
-            implementation_plan = implementation_planner_agent.analyze(
-                feature_name=feature_name,
-                feature_description=description,
-                engineer_analysis=engineer_result,
-                similar_features=wave2_results[1].get('similar_projects', []) if len(wave2_results) > 1 else [],
-                market_intelligence=wave1_results[2] if len(wave1_results) > 2 else {},
-                competitor_analysis=wave1_results[1] if len(wave1_results) > 1 else {}
-            )
-
-            planner_elapsed_ms = (time.time() - planner_start) * 1000
-
-            planner_result = {
-                "search_patterns": implementation_plan.get("search_patterns", []),
-                "tasks": implementation_plan.get("tasks", []),
-                "total_hours": implementation_plan.get("total_estimated_hours", 0),
-                "reasoning": [
-                    f"Analyzed all {len(wave1_results) + len(wave2_results)} agent outputs",
-                    f"Engineer estimate: ${engineer_result.get('estimated_cost_usd', 0):,} over {engineer_result.get('estimated_sprints', 0)} sprints",
-                    f"Generated {len(implementation_plan.get('tasks', []))} implementation tasks",
-                    f"Total estimated hours: {implementation_plan.get('total_estimated_hours', 0)}",
-                    "Using NVIDIA Nemotron Nano 8B for task breakdown and file structure planning"
-                ],
-                "confidence": 0.85,
-                "tool_calls": [
-                    {"tool": "NVIDIA Nemotron Nano 8B", "action": "Implementation planning and task breakdown"}
-                ],
-                "elapsed_ms": planner_elapsed_ms
-            }
-
-            yield f"data: {json.dumps({'type': 'agent_complete', 'agent': 'implementation_planner', 'wave': 3, 'result': planner_result, 'timestamp': time.time()})}\n\n"
-
-            wave3_duration = (time.time() - wave3_start) * 1000
-            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 3, 'duration_ms': wave3_duration, 'timestamp': time.time()})}\n\n"
-
-            # Final completion
-            total_duration = (time.time() - analysis_start_time) * 1000
-            yield f"data: {json.dumps({'type': 'complete', 'total_duration_ms': total_duration, 'wave_timings': {'wave1_ms': wave1_duration, 'wave2_ms': wave2_duration, 'wave3_ms': wave3_duration}, 'timestamp': time.time()})}\n\n"
-
+        except asyncio.CancelledError:
+            logger.info(f"Client {client_id} connection cancelled")
         except Exception as e:
-            logger.error(f"Stream analysis failed: {str(e)}", exc_info=True)
+            logger.error(f"Stream error for client {client_id}: {str(e)}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'timestamp': time.time()})}\n\n"
+        finally:
+            await connection_manager.disconnect(client_id)
+            logger.info(f"Client {client_id} disconnected")
 
     return StreamingResponse(
         event_generator(),
@@ -425,6 +378,212 @@ async def stream_analysis_progress(
             "Connection": "keep-alive"
         }
     )
+
+async def run_analysis_and_broadcast(
+    session_id: str,
+    feature_name: str,
+    description: str,
+    target_user: str,
+    business_goal: str,
+    industry: str
+):
+    """
+    Run the complete 3-wave analysis ONCE and broadcast events to ALL connected clients.
+    """
+    try:
+        analysis_start_time = time.time()
+
+        # Broadcast start event to all clients
+        await connection_manager.broadcast({
+            'type': 'start',
+            'session_id': session_id,
+            'feature_name': feature_name,
+            'timestamp': time.time()
+        })
+
+        # WAVE 1: Parallel execution (Engineer, Competitor, Market Intelligence)
+        wave1_start = time.time()
+
+        # Broadcast wave 1 start events
+        for agent_name in ['engineer', 'competitor', 'market_intelligence']:
+            await connection_manager.broadcast({
+                'type': 'agent_start',
+                'agent': agent_name,
+                'wave': 1,
+                'timestamp': time.time()
+            })
+
+        # Run Wave 1 agents in parallel
+        wave1_results = await asyncio.gather(
+            run_engineer_with_events(feature_name, description),
+            run_competitor_with_events(feature_name, description, industry),
+            run_market_intel_with_events(feature_name, industry)
+        )
+
+        # Broadcast Wave 1 completion events
+        for idx, agent_name in enumerate(['engineer', 'competitor', 'market_intelligence']):
+            result = wave1_results[idx]
+            await connection_manager.broadcast({
+                'type': 'agent_complete',
+                'agent': agent_name,
+                'wave': 1,
+                'result': result,
+                'timestamp': time.time()
+            })
+
+        wave1_duration = (time.time() - wave1_start) * 1000
+        await connection_manager.broadcast({
+            'type': 'wave_complete',
+            'wave': 1,
+            'duration_ms': wave1_duration,
+            'timestamp': time.time()
+        })
+
+        # WAVE 2: Dependent execution (ROI, Similar Features - needs Engineer output)
+        wave2_start = time.time()
+        engineer_result = wave1_results[0]
+
+        for agent_name in ['roi_calculator', 'similar_features']:
+            await connection_manager.broadcast({
+                'type': 'agent_start',
+                'agent': agent_name,
+                'wave': 2,
+                'timestamp': time.time()
+            })
+
+        # Run Wave 2 agents in parallel (both depend on Engineer)
+        wave2_results = await asyncio.gather(
+            run_roi_with_events(feature_name, engineer_result, industry),
+            run_similar_with_events(feature_name, description, engineer_result)
+        )
+
+        for idx, agent_name in enumerate(['roi_calculator', 'similar_features']):
+            result = wave2_results[idx]
+            await connection_manager.broadcast({
+                'type': 'agent_complete',
+                'agent': agent_name,
+                'wave': 2,
+                'result': result,
+                'timestamp': time.time()
+            })
+
+        wave2_duration = (time.time() - wave2_start) * 1000
+        await connection_manager.broadcast({
+            'type': 'wave_complete',
+            'wave': 2,
+            'duration_ms': wave2_duration,
+            'timestamp': time.time()
+        })
+
+        # WAVE 3: Final synthesis (Implementation Planner - needs all outputs)
+        wave3_start = time.time()
+
+        await connection_manager.broadcast({
+            'type': 'agent_start',
+            'agent': 'implementation_planner',
+            'wave': 3,
+            'timestamp': time.time()
+        })
+
+        # Call REAL Implementation Planner Agent (Wave 3)
+        planner_start = time.time()
+
+        implementation_plan = implementation_planner_agent.analyze(
+            feature_name=feature_name,
+            feature_description=description,
+            engineer_analysis=engineer_result,
+            similar_features=wave2_results[1].get('similar_projects', []) if len(wave2_results) > 1 else [],
+            market_intelligence=wave1_results[2] if len(wave1_results) > 2 else {},
+            competitor_analysis=wave1_results[1] if len(wave1_results) > 1 else {}
+        )
+
+        planner_elapsed_ms = (time.time() - planner_start) * 1000
+
+        planner_result = {
+            "search_patterns": implementation_plan.get("search_patterns", []),
+            "tasks": implementation_plan.get("tasks", []),
+            "total_hours": implementation_plan.get("total_estimated_hours", 0),
+            "reasoning": [
+                f"Analyzed all {len(wave1_results) + len(wave2_results)} agent outputs",
+                f"Engineer estimate: ${engineer_result.get('estimated_cost_usd', 0):,} over {engineer_result.get('estimated_sprints', 0)} sprints",
+                f"Generated {len(implementation_plan.get('tasks', []))} implementation tasks",
+                f"Total estimated hours: {implementation_plan.get('total_estimated_hours', 0)}",
+                "Using NVIDIA Nemotron Nano 8B for task breakdown and file structure planning"
+            ],
+            "confidence": 0.85,
+            "tool_calls": [
+                {"tool": "NVIDIA Nemotron Nano 8B", "action": "Implementation planning and task breakdown"}
+            ],
+            "elapsed_ms": planner_elapsed_ms
+        }
+
+        await connection_manager.broadcast({
+            'type': 'agent_complete',
+            'agent': 'implementation_planner',
+            'wave': 3,
+            'result': planner_result,
+            'timestamp': time.time()
+        })
+
+        wave3_duration = (time.time() - wave3_start) * 1000
+        await connection_manager.broadcast({
+            'type': 'wave_complete',
+            'wave': 3,
+            'duration_ms': wave3_duration,
+            'timestamp': time.time()
+        })
+
+        # Final completion
+        total_duration = (time.time() - analysis_start_time) * 1000
+
+        # Compile complete analysis for saving
+        complete_analysis = {
+            "analysis_id": session_id,
+            "feature_name": feature_name,
+            "description": description,
+            "industry": industry,
+            "engineer_analysis": wave1_results[0],
+            "competitor_analysis": wave1_results[1],
+            "market_intelligence": wave1_results[2],
+            "roi_scenarios": wave2_results[0],
+            "similar_features": wave2_results[1],
+            "implementation_plan": planner_result,
+            "wave_timings": {
+                'wave1_ms': wave1_duration,
+                'wave2_ms': wave2_duration,
+                'wave3_ms': wave3_duration
+            },
+            "total_duration_ms": total_duration,
+            "timestamp": time.time()
+        }
+
+        await connection_manager.broadcast({
+            'type': 'complete',
+            'session_id': session_id,
+            'total_duration_ms': total_duration,
+            'wave_timings': {
+                'wave1_ms': wave1_duration,
+                'wave2_ms': wave2_duration,
+                'wave3_ms': wave3_duration
+            },
+            'analysis': complete_analysis,
+            'timestamp': time.time()
+        })
+
+        # Mark session as complete
+        session_manager.complete_session(session_id)
+
+        logger.info(f"Analysis session {session_id} completed in {total_duration:.2f}ms")
+
+    except Exception as e:
+        logger.error(f"Analysis broadcast failed: {str(e)}", exc_info=True)
+        await connection_manager.broadcast({
+            'type': 'error',
+            'session_id': session_id,
+            'message': str(e),
+            'timestamp': time.time()
+        })
+        session_manager.complete_session(session_id)
 
 # Helper functions for streaming agents
 async def run_engineer_with_events(feature_name: str, description: str):

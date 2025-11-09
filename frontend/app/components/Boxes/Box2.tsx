@@ -14,9 +14,10 @@ const formatUsd = (value?: number) => {
   }).format(value);
 };
 
-export const Box2 = () => {
-  const { data, loading, error, refetch } = useAnalysisData();
-  const engineer = data?.engineer_analysis;
+export const Box2 = ({ analysisData }: { analysisData?: any }) => {
+  const { data: fallbackData, loading, error, refetch } = useAnalysisData();
+  const data = analysisData || fallbackData;
+  const engineer = data?.engineer || data?.engineer_analysis;
 
   if (loading) {
     return <LoadingStateCard title="Engineering estimate" />;

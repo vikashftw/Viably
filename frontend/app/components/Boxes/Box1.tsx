@@ -23,9 +23,12 @@ const riskStyles: Record<string, { bg: string; text: string; badge: string }> = 
   },
 };
 
-export const Box1 = () => {
-  const { data, loading, error, refetch } = useAnalysisData();
-  const competitor = data?.competitor_analysis;
+export const Box1 = ({ analysisData }: { analysisData?: any }) => {
+  const { data: fallbackData, loading, error, refetch } = useAnalysisData();
+
+  // Use shared analysis data if available, otherwise fall back to context
+  const data = analysisData || fallbackData;
+  const competitor = data?.competitor || data?.competitor_analysis;
 
   if (loading) {
     return <LoadingStateCard title="Competitor Intelligence" />;

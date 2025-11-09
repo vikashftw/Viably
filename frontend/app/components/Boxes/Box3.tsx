@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { useAnalysisData } from '../AnalysisProvider';
+import { useSharedAnalysis } from '../../hooks/useSharedAnalysis';
 
 export const Box3 = ({ backlog }: { backlog: any[] }) => {
   const { triggerAnalysis, loading: analysisLoading, data: analysisData } = useAnalysisData();
+  const { startAnalysis, isRunning: isSharedAnalysisRunning } = useSharedAnalysis();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [isCreatingPR, setIsCreatingPR] = useState<string | null>(null);
   const [analyzingIssue, setAnalyzingIssue] = useState<string | null>(null);
@@ -20,10 +22,18 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
   const handleMarketResearch = async (issue: any) => {
     setAnalyzingIssue(issue.id);
     try {
-      await triggerAnalysis(
+      // Use shared SSE analysis instead of REST API
+      startAnalysis(
         issue.summary || 'Feature Analysis',
         `Implementation for Jira issue: ${issue.id} - ${issue.summary || 'No description'}`
       );
+
+      // Optionally open NVIDIA dashboard in new window to watch live execution
+      // window.open(
+      //   `/nvidia?feature=${encodeURIComponent(issue.summary || 'Feature Analysis')}&jira=${issue.id}`,
+      //   'nvidia-dashboard',
+      //   'width=1400,height=900'
+      // );
     } catch (error) {
       console.error('Failed to run analysis:', error);
       alert(`Error running analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -97,10 +107,10 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
                   >
                     <button
                       onClick={() => handleMarketResearch(issue)}
-                      disabled={analyzingIssue === issue.id || analysisLoading}
+                      disabled={analyzingIssue === issue.id || analysisLoading || isSharedAnalysisRunning}
                       className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed"
                     >
-                      {analyzingIssue === issue.id || analysisLoading ? 'Analyzing...' : 'Market Research'}
+                      {analyzingIssue === issue.id || analysisLoading || isSharedAnalysisRunning ? 'Analyzing...' : 'Market Research'}
                     </button>
                     <button
                       onClick={() => handleCreatePR(issue)}

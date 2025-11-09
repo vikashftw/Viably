@@ -31,8 +31,9 @@ const decisionStyles: Record<
   },
 };
 
-export const Box5 = () => {
-  const { data, loading, error, refetch } = useAnalysisData();
+export const Box5 = ({ analysisData }: { analysisData?: any }) => {
+  const { data: fallbackData, loading, error, refetch } = useAnalysisData();
+  const data = analysisData || fallbackData;
   const recommendation = data?.overall_recommendation;
 
   if (loading) {
