@@ -75,19 +75,26 @@ Description:
 Analyze the competitive landscape and provide assessment in the following JSON format:
 
 {{
-    "key_competitors": [<array of 2-5 competitor names as strings>],
-    "expected_response_time_sprints": <how many 2-week sprints for competitors to match (integer)>,
-    "response_play": "<short description of how competitors would respond>",
-    "competitive_risk_level": "LOW" | "MEDIUM" | "HIGH"
+    "competitors": [
+        {{"name": "<competitor name>", "market_position": "<leader|challenger|niche|new_entrant>"}}
+    ],
+    "market_maturity": "<emerging|growing|mature|declining>",
+    "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
+    "risk_score": <numeric score 1-10 for competitive risk>,
+    "time_to_replicate_months": <integer, how many months for a serious competitor to build a similar feature>,
+    "risk_factors": ["<up to 3 key competitive risks, e.g., 'Strong network effects of incumbents'>"],
+    "market_opportunity": {{
+        "size": "<small|medium|large>",
+        "growth_rate": "<stable|growing|rapid>",
+        "urgency": "<low|medium|high|critical>"
+    }}
 }}
 
 Rules:
-- key_competitors: List 2-5 well-known, believable competitors
-- expected_response_time_sprints: In 2-week sprints, how quickly serious competitors could match
-- response_play: How they'd respond (discounts, bundling, similar feature, partnerships, etc.) - keep short but specific
-- competitive_risk_level:
-  - "HIGH" if easy to copy AND strong competitors exist
-  - "MEDIUM" if copyable with some friction
-  - "LOW" if defensible, complex, or niche
+- Base your analysis on the provided search results and general market knowledge.
+- `risk_score`: 1=no risk, 10=extreme risk. Be realistic.
+- `competitors`: Identify 2-4 key players.
+- `strategic_recommendation`: What is the best strategic move for us?
+- `market_opportunity`: Assess the overall market attractiveness for this feature.
 
-Base your analysis on actual competitors found in search results and market dynamics."""
+Be objective and data-driven in your assessment."""
