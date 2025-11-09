@@ -1,4 +1,42 @@
-# Viably - AI Product Sandbox War Game
+# Viably
+# this is the format for getting the input from the Product manager (in this same field format) that would be used by the agents to analyse the market.
+{
+  "feature_name": "Buy Now, Pay Later (BNPL)",
+  "description": "Let users split payments into installments directly at checkout.",
+  "target_user": "Online shoppers in the US",
+  "business_goal": "Increase checkout conversion and average order value"
+}
+
+
+
+# Below is the output format in which data would be provided by the agents used for doing market research about the input product
+
+{
+  "feature_name": "string",
+  "engineer_analysis": {
+    "estimated_sprints": 0,
+    "estimated_engineers": 0,
+    "estimated_cost_usd": 0,
+    "key_risks": [],
+    "confidence": 0.0
+  },
+  "competitor_analysis": {
+    "key_competitors": [],
+    "expected_response_time_sprints": 0,
+    "response_play": "",
+    "competitive_risk_level": "LOW"
+  },
+  "overall_recommendation": {
+    "summary": "",
+    "rationale": "",
+    "action_items": []
+  },
+  "upskilling_insights": {
+    "bottleneck_skills": [],
+    "suggested_training": []
+  }
+}
+ - AI Product Sandbox War Game
 
 **NVIDIA + PNC Hackathon Project**
 
