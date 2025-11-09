@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import uuid
 import json
 import os
@@ -53,7 +53,9 @@ ANALYSIS_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 class AnalyzeRequest(BaseModel):
     feature_name: str
     description: str
-    industry: str = "fintech"
+    target_user: str = "PNC customers"
+    business_goal: str = "increase engagement and revenue"
+    industry: str = "banking"
 
 class CompleteAnalysisRequest(BaseModel):
     feature_name: str
@@ -65,6 +67,9 @@ class CompleteAnalysisRequest(BaseModel):
 class TriggerImplementationRequest(BaseModel):
     analysis_id: str
     target_repo: Dict[str, Any]
+
+class CompareRequest(BaseModel):
+    features: List[str]
 
 # Include Jira router
 app.include_router(jira.router, prefix="/api/jira", tags=["jira"])
@@ -89,12 +94,18 @@ async def root():
             "/api/analyze-complete",
             "/api/trigger-implementation",
             "/api/analysis/{analysis_id}",
-            "/api/jira/*"
+            "/api/compare",
+            "/api/analytics/skills",
+            "/api/jira/*",
+            "/health"
         ]
     }
 
-# Original endpoint - kept for backward compatibility
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
+# Original endpoint - kept for backward compatibility
 @app.post("/api/analyze")
 async def analyze_feature(request: AnalyzeRequest):
     """
@@ -106,6 +117,8 @@ async def analyze_feature(request: AnalyzeRequest):
         result = orchestrator.analyze(
             feature_name=request.feature_name,
             feature_description=request.description,
+            target_user=request.target_user,
+            business_goal=request.business_goal,
             industry=request.industry
         )
         return result
@@ -256,18 +269,18 @@ async def analyze_complete(request: CompleteAnalysisRequest):
         logger.error(f"Complete analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Complete analysis failed: {str(e)}")
 
-# NEW ENDPOINT 2: Trigger implementation via Postman AI Service
+# NEW ENDPOINT 2: Trigger implementation via Automation Service
 @app.post("/api/trigger-implementation")
 async def trigger_implementation(request: TriggerImplementationRequest):
     """
-    Trigger implementation workflow by sending analysis to Postman AI Service.
+    Trigger implementation workflow by sending analysis to Automation Service.
 
     Steps:
     1. Load analysis from saved JSON file
-    2. Call Postman AI Service at http://localhost:3002/api/implementation-flow
-    3. Return response from Postman service
+    2. Call Automation Service at http://localhost:3002/api/implementation-flow
+    3. Return response from service
 
-    Raises 404 if analysis_id not found, 503 if Postman service unavailable.
+    Raises 404 if analysis_id not found, 503 if service unavailable.
     """
     logger.info(f"Triggering implementation for analysis: {request.analysis_id}")
 
@@ -278,18 +291,18 @@ async def trigger_implementation(request: TriggerImplementationRequest):
         if not analysis:
             raise HTTPException(status_code=404, detail=f"Analysis not found: {request.analysis_id}")
 
-        # Step 2: Call Postman AI Service
-        postman_url = "http://localhost:3002/api/implementation-flow"
+        # Step 2: Call Automation Service
+        automation_url = "http://localhost:3002/api/implementation-flow"
         payload = {
             "viably_analysis": analysis,
             "target_repo": request.target_repo
         }
 
-        logger.info(f"Calling Postman service at {postman_url}...")
+        logger.info(f"Calling Automation Service at {automation_url}...")
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             try:
-                response = await client.post(postman_url, json=payload)
+                response = await client.post(automation_url, json=payload)
                 response.raise_for_status()
 
                 result = response.json()
@@ -298,20 +311,20 @@ async def trigger_implementation(request: TriggerImplementationRequest):
                 return {
                     "status": "success",
                     "analysis_id": request.analysis_id,
-                    "postman_response": result
+                    "automation_response": result
                 }
 
             except httpx.ConnectError:
-                logger.error("Postman service unavailable")
+                logger.error("Automation Service unavailable")
                 raise HTTPException(
                     status_code=503,
-                    detail="Postman AI Service unavailable at http://localhost:3002. Is it running?"
+                    detail="Automation Service unavailable at http://localhost:3002. Is it running?"
                 )
             except httpx.HTTPStatusError as e:
-                logger.error(f"Postman service error: {e.response.status_code}")
+                logger.error(f"Automation Service error: {e.response.status_code}")
                 raise HTTPException(
                     status_code=e.response.status_code,
-                    detail=f"Postman service error: {e.response.text}"
+                    detail=f"Automation Service error: {e.response.text}"
                 )
 
     except HTTPException:
@@ -344,6 +357,43 @@ async def get_analysis(analysis_id: str):
     except Exception as e:
         logger.error(f"Failed to retrieve analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve analysis: {str(e)}")
+
+# NEW ENDPOINT 4: Compare multiple features
+@app.post("/api/compare")
+async def compare_features(request: CompareRequest):
+    """
+    Compare multiple features side by side.
+
+    Placeholder for future implementation.
+    """
+    return {
+        "message": "Feature comparison endpoint",
+        "features": request.features,
+        "status": "not_implemented"
+    }
+
+# NEW ENDPOINT 5: Get skills analytics
+@app.get("/api/analytics/skills")
+async def get_skills():
+    """
+    Get upskilling analytics across all analyzed features.
+
+    Returns aggregated skill data from upskilling tracker.
+    """
+    try:
+        insights = orchestrator.upskilling_tracker.get_insights()
+        return {
+            "status": "success",
+            "skills": insights.get("bottleneck_skills", []),
+            "training": insights.get("suggested_training", [])
+        }
+    except Exception as e:
+        logger.error(f"Skills analytics failed: {str(e)}")
+        return {
+            "status": "error",
+            "skills": [],
+            "training": []
+        }
 
 # Helper functions
 def save_analysis(analysis_id: str, data: Dict[str, Any]) -> None:
