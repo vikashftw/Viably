@@ -1,14 +1,17 @@
 """
-Orchestrator Agent V2: Combines Engineer + Competitor analysis with upskilling.
-
-Matches Person 4's output schema while keeping multi-agent architecture.
+Orchestrator Agent V2: Combines analysis from 6 agents in parallel.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any
 from .base_agent import BaseAgent
 from .engineer_agent import EngineerAgent
 from .competitor_agent import CompetitorAgent
+from .market_intelligence_agent import MarketIntelligenceAgent
+from .roi_calculator_agent import ROICalculatorAgent
+from .similar_feature_agent import SimilarFeatureAgent
+from .implementation_planner_agent import ImplementationPlannerAgent
 from utils.upskilling import get_tracker
 
 logger = logging.getLogger(__name__)
@@ -16,149 +19,143 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorV2(BaseAgent):
     """
-    Orchestrator that combines Engineer and Competitor agents.
-
-    Output matches Person 4's schema:
-    {
-        "feature_name": str,
-        "engineer_analysis": {...},
-        "competitor_analysis": {...},
-        "overall_recommendation": {...},
-        "upskilling_insights": {...}
-    }
+    Orchestrator that runs a 3-wave parallel analysis using 6 agents.
     """
 
     def __init__(self, use_vector_embeddings: bool = False):
         """
-        Initialize Orchestrator.
-
-        Args:
-            use_vector_embeddings: Pass to Engineer Agent for RAG mode
+        Initialize Orchestrator with all required agents.
         """
         super().__init__()
-        self.engineer = EngineerAgent(use_vector_embeddings=use_vector_embeddings)
-        self.competitor = CompetitorAgent()
+        # Wave 1
+        self.engineer_agent = EngineerAgent(use_vector_embeddings=use_vector_embeddings)
+        self.competitor_agent = CompetitorAgent()
+        self.market_intel_agent = MarketIntelligenceAgent()
+        # Wave 2
+        self.roi_calculator = ROICalculatorAgent()
+        self.similar_features_agent = SimilarFeatureAgent()
+        # Wave 3
+        self.implementation_planner = ImplementationPlannerAgent()
+        
         self.upskilling_tracker = get_tracker()
-        logger.info("OrchestratorV2 initialized")
+        logger.info("OrchestratorV2 initialized with 6 agents for 3-wave execution")
 
-    def analyze(
+    async def analyze(
         self,
         feature_name: str,
         feature_description: str,
-        target_user: str = "PNC customers",
-        business_goal: str = "increase engagement and revenue",
-        industry: str = "banking",
+        target_user: str,
+        business_goal: str,
+        industry: str,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Orchestrate complete product feature analysis.
-
-        Args:
-            feature_name: Name of the feature
-            feature_description: Detailed description
-            target_user: Who will use this (default: "PNC customers")
-            business_goal: Why build this (default: "increase engagement and revenue")
-            industry: Industry context (default: "banking")
-            **kwargs: Additional parameters
-
-        Returns:
-            Analysis matching Person 4's schema
+        Analyze feature using 3-wave parallel execution
+        Wave 1: Independent agents (Engineer, Competitor, Market Intel)
+        Wave 2: Dependent on Engineer (ROI, Similar Features)
+        Wave 3: Depends on all (Implementation Planner)
         """
-        logger.info(f"=== ORCHESTRATOR V2: Starting analysis for '{feature_name}' ===")
+        logger.info(f"=== ORCHESTRATOR V2 (3-WAVE): Starting analysis for '{feature_name}' ===")
 
         try:
-            # Step 1: Engineer Agent - Cost estimation
-            logger.info("Step 1: Running Engineer Agent...")
-            engineer_result = self.engineer.analyze(
-                feature_description=feature_description,
-                feature_name=feature_name
+            # WAVE 1: Run independent agents in parallel (8 seconds)
+            print("[Orchestrator] Wave 1: Running independent agents...")
+            logger.info("[Orchestrator] Wave 1: Running independent agents...")
+            
+            # Simulating teammate's work with provided mock data
+            engineer_result, competitor_result, market_result = await asyncio.gather(
+                self.engineer_agent.analyze(
+                    feature_name=feature_name,
+                    feature_description=feature_description,
+                ),
+                self.competitor_agent.analyze(
+                    feature_name=feature_name,
+                    feature_description=feature_description,
+                    industry=industry
+                ),
+                self.market_intel_agent.analyze(
+                    feature_name=feature_name,
+                    feature_description=feature_description,
+                    industry=industry
+                )
             )
+            engineer_cost = engineer_result.get("estimated_cost_usd") or engineer_result.get("cost", 0) or 0
+            competitor_count = len(competitor_result.get("key_competitors", []))
+            market_size = market_result.get("estimated_market_size_usd") or market_result.get("market_size_usd", 0) or 0
+            print(f"[Orchestrator] Wave 1 complete: Engineer (${engineer_cost:,}), Competitors ({competitor_count}), Market (${market_size:,})")
+            logger.info(f"[Orchestrator] Wave 1 complete.")
 
-            # Extract sprints/engineers/cost from engineer result
-            engineer_analysis = {
-                "estimated_sprints": engineer_result.get("estimated_sprints", 0),
-                "estimated_engineers": engineer_result.get("estimated_engineers", 0),
-                "estimated_cost_usd": engineer_result.get("estimated_cost_usd", 0),
-                "key_risks": engineer_result.get("key_risks", []),
-                "confidence": engineer_result.get("confidence", 0.7)
-            }
-
-            # Step 2: Competitor Agent - Market analysis
-            logger.info("Step 2: Running Competitor Agent...")
-            competitor_result = self.competitor.analyze(
-                feature_description=feature_description,
-                feature_name=feature_name,
-                industry=industry
+            # WAVE 2: Run Engineer-dependent agents in parallel (4 seconds)
+            print("[Orchestrator] Wave 2: Running dependent agents...")
+            logger.info("[Orchestrator] Wave 2: Running dependent agents...")
+            roi_result, similar_result = await asyncio.gather(
+                self.roi_calculator.calculate(
+                    feature_name=feature_name,
+                    engineer_analysis=engineer_result
+                ),
+                self.similar_features_agent.find(
+                    feature_name=feature_name,
+                    feature_description=feature_description,
+                    engineer_analysis=engineer_result
+                )
             )
+            print(f"[Orchestrator] Wave 2 complete: ROI ({roi_result.get('base_case', {}).get('roi_percent', 0)}%), Similar Features ({len(similar_result.get('similar_projects', []))})")
+            logger.info(f"[Orchestrator] Wave 2 complete.")
 
-            # Extract competitor analysis
-            competitor_analysis = {
-                "key_competitors": competitor_result.get("key_competitors", []),
-                "expected_response_time_sprints": competitor_result.get("expected_response_time_sprints", 0),
-                "response_play": competitor_result.get("response_play", ""),
-                "competitive_risk_level": competitor_result.get("competitive_risk_level", "MEDIUM")
+            # WAVE 3: Run final agent that depends on everything (3 seconds)
+            print("[Orchestrator] Wave 3: Running final agent...")
+            logger.info("[Orchestrator] Wave 3: Running final agent...")
+            planning_payload = {
+                "feature_name": feature_name,
+                "feature_description": feature_description,
+                "engineer_analysis": engineer_result,
+                "competitor_analysis": competitor_result,
+                "market_intelligence": market_result,
+                "roi_scenarios": roi_result,
+                "similar_features": similar_result
             }
+            impl_result = await self.implementation_planner.plan(planning_payload)
+            print(f"[Orchestrator] Wave 3 complete: {len(impl_result.get('search_patterns', []))} search patterns, {len(impl_result.get('tasks', []))} tasks")
+            logger.info(f"[Orchestrator] Wave 3 complete.")
 
-            # Step 3: Generate overall recommendation
-            logger.info("Step 3: Synthesizing recommendation...")
+            # Generate overall recommendation (using existing logic)
+            logger.info("Synthesizing recommendation...")
             recommendation = self._generate_recommendation(
                 feature_name=feature_name,
-                engineer_analysis=engineer_analysis,
-                competitor_analysis=competitor_analysis,
+                engineer_analysis=engineer_result,
+                competitor_analysis=competitor_result,
                 business_goal=business_goal
             )
 
-            # Step 4: Get upskilling insights
-            logger.info("Step 4: Generating upskilling insights...")
-            # Track skills from similar projects (from engineer's RAG results)
-            similar_projects_found = engineer_result.get("similar_projects_found", 0)
-            if similar_projects_found > 0:
-                # In real system, we'd track actual skills from the engineer analysis
-                # For demo, we simulate based on feature type
+            # Get upskilling insights (using existing logic)
+            logger.info("Generating upskilling insights...")
+            if engineer_result.get("similar_projects_found", 0) > 0:
                 inferred_skills = self._infer_skills_from_feature(feature_description)
                 self.upskilling_tracker.track_skills(inferred_skills)
-
             upskilling_insights = self.upskilling_tracker.get_insights()
 
-            # Step 5: Combine into final output
+            # Combine into final output
             result = {
                 "feature_name": feature_name,
-                "engineer_analysis": engineer_analysis,
-                "competitor_analysis": competitor_analysis,
+                "engineer_analysis": engineer_result,
+                "competitor_analysis": competitor_result,
+                "market_intelligence": market_result,
+                "roi_scenarios": roi_result,
+                "similar_features": similar_result,
+                "implementation_plan": impl_result,
                 "overall_recommendation": recommendation,
-                "upskilling_insights": upskilling_insights
+                "upskilling_insights": upskilling_insights,
             }
 
-            logger.info("=== ORCHESTRATOR V2: Analysis complete ===")
+            logger.info("=== ORCHESTRATOR V2 (3-WAVE): Analysis complete ===")
             return result
 
         except Exception as e:
-            logger.error(f"Orchestrator analysis failed: {str(e)}")
+            logger.error(f"Orchestrator analysis failed: {str(e)}", exc_info=True)
             return {
                 "feature_name": feature_name,
-                "engineer_analysis": {
-                    "estimated_sprints": 0,
-                    "estimated_engineers": 0,
-                    "estimated_cost_usd": 0,
-                    "key_risks": [f"Analysis failed: {str(e)}"],
-                    "confidence": 0.0
-                },
-                "competitor_analysis": {
-                    "key_competitors": [],
-                    "expected_response_time_sprints": 0,
-                    "response_play": "Unknown",
-                    "competitive_risk_level": "MEDIUM"
-                },
-                "overall_recommendation": {
-                    "summary": "Unable to complete analysis",
-                    "rationale": f"Error: {str(e)}",
-                    "action_items": ["Fix analysis errors", "Retry with valid inputs"]
-                },
-                "upskilling_insights": {
-                    "bottleneck_skills": [],
-                    "suggested_training": []
-                },
-                "error": str(e)
+                "error": str(e),
+                "details": "An exception occurred during the analysis pipeline."
             }
 
     def _generate_recommendation(
@@ -170,15 +167,6 @@ class OrchestratorV2(BaseAgent):
     ) -> Dict[str, Any]:
         """
         Generate overall strategic recommendation.
-
-        Args:
-            feature_name: Name of feature
-            engineer_analysis: Engineer agent output
-            competitor_analysis: Competitor agent output
-            business_goal: Why we're building this
-
-        Returns:
-            Recommendation dict with summary, rationale, action_items
         """
         cost = engineer_analysis.get("estimated_cost_usd", 0)
         sprints = engineer_analysis.get("estimated_sprints", 0)
@@ -189,58 +177,23 @@ class OrchestratorV2(BaseAgent):
         competitors = competitor_analysis.get("key_competitors", [])
         response_time = competitor_analysis.get("expected_response_time_sprints", 0)
 
-        # Decision logic
         action_items = []
-
-        # High cost + high risk = defer or differentiate
         if cost > 500000 and risk_level == "HIGH":
             summary = "DEFER - High cost with high competitive risk"
-            rationale = f"${cost:,} investment with {len(competitors)} strong competitors that can match in {response_time} sprints. Consider differentiation strategy or defer."
-            action_items = [
-                "Identify unique differentiation angle",
-                "Reduce scope to lower cost",
-                "Wait for market maturity signals"
-            ]
-
-        # Low risk + reasonable cost = proceed
+            rationale = f"${cost:,} investment with {len(competitors)} strong competitors that can match in {response_time} sprints."
+            action_items = ["Identify unique differentiation angle", "Reduce scope to lower cost"]
         elif risk_level == "LOW" and cost < 300000:
             summary = "PROCEED - Low competitive risk, manageable cost"
-            rationale = f"${cost:,} over {sprints} sprints is reasonable given {risk_level.lower()} competitive risk. {business_goal.capitalize()} aligns with expected ROI."
-            action_items = [
-                "Assemble team and kick off discovery",
-                "Create detailed technical spec",
-                "Set up success metrics"
-            ]
-
-        # Medium risk, medium cost = proceed with caution
-        elif risk_level == "MEDIUM" and cost < 500000:
-            summary = "PROCEED WITH CAUTION - Balanced risk/reward"
-            rationale = f"{sprints} sprints with {engineers} engineers is feasible. Medium competitive risk requires differentiation in execution."
-            action_items = [
-                "Define clear differentiation vs competitors",
-                "Plan phased rollout to validate assumptions",
-                "Monitor competitor moves closely"
-            ]
-
-        # Low confidence = investigate first
+            rationale = f"${cost:,} over {sprints} sprints is reasonable given low competitive risk."
+            action_items = ["Assemble team and kick off discovery", "Create detailed technical spec"]
         elif confidence < 0.7:
             summary = "INVESTIGATE - Low estimation confidence"
-            rationale = f"Confidence only {confidence:.0%}. Need more discovery to refine estimates and derisk assumptions."
-            action_items = [
-                "Conduct technical spike/POC",
-                "Interview target users for validation",
-                "Refine requirements and re-estimate"
-            ]
-
-        # Default: proceed
+            rationale = f"Confidence only {confidence:.0%}. Need more discovery to refine estimates."
+            action_items = ["Conduct technical spike/POC", "Interview target users for validation"]
         else:
             summary = "PROCEED - Acceptable risk/cost profile"
             rationale = f"{sprints} sprints, ${cost:,}. Competitive positioning requires execution excellence."
-            action_items = [
-                "Finalize scope and technical approach",
-                "Assemble cross-functional team",
-                "Create project plan and milestones"
-            ]
+            action_items = ["Finalize scope and technical approach", "Assemble cross-functional team"]
 
         return {
             "summary": summary,
@@ -250,30 +203,16 @@ class OrchestratorV2(BaseAgent):
 
     def _infer_skills_from_feature(self, description: str) -> list:
         """
-        Infer required skills from feature description.
-
-        This is a simple keyword-based inference for demo purposes.
-        In production, would use the actual skills from engineer analysis.
+        Infer required skills from feature description for demo purposes.
         """
         description_lower = description.lower()
         skills = []
-
-        # Check for keywords
-        if any(word in description_lower for word in ['mobile', 'app', 'ios', 'android']):
-            skills.append('mobile')
-        if any(word in description_lower for word in ['api', 'backend', 'server', 'database']):
-            skills.append('backend')
-        if any(word in description_lower for word in ['security', 'auth', 'encryption', 'compliance']):
-            skills.append('security')
-        if any(word in description_lower for word in ['payment', 'transaction', 'checkout']):
-            skills.append('payments')
-        if any(word in description_lower for word in ['ai', 'ml', 'machine learning', 'prediction']):
-            skills.append('ml')
-        if any(word in description_lower for word in ['frontend', 'ui', 'dashboard', 'interface']):
-            skills.append('frontend')
-        if any(word in description_lower for word in ['data', 'analytics', 'insights']):
-            skills.append('data-science')
-        if any(word in description_lower for word in ['cloud', 'aws', 'azure', 'infrastructure']):
-            skills.append('cloud')
-
-        return skills if skills else ['backend', 'frontend']  # Default
+        if 'mobile' in description_lower: skills.append('mobile')
+        if 'api' in description_lower: skills.append('backend')
+        if 'security' in description_lower: skills.append('security')
+        if 'payment' in description_lower: skills.append('payments')
+        if 'ml' in description_lower: skills.append('ml')
+        if 'frontend' in description_lower: skills.append('frontend')
+        if 'data' in description_lower: skills.append('data-science')
+        if 'cloud' in description_lower: skills.append('cloud')
+        return skills if skills else ['backend', 'frontend']

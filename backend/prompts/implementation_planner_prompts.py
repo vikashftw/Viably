@@ -39,7 +39,9 @@ def get_implementation_planner_user_prompt(
     feature_description: str,
     engineer_analysis: dict,
     similar_features: list = None,
-    market_intelligence: dict = None
+    market_intelligence: dict = None,
+    competitor_analysis: dict = None,
+    roi_scenarios: dict = None
 ) -> str:
     """
     Get the user prompt for implementation planning.
@@ -50,6 +52,8 @@ def get_implementation_planner_user_prompt(
         engineer_analysis: Analysis from Engineer Agent (cost, sprints, skills)
         similar_features: List of similar features (from Similar Feature Agent)
         market_intelligence: Market data (optional)
+        competitor_analysis: Competitive insights (optional)
+        roi_scenarios: ROI projections (optional)
 
     Returns:
         User prompt string
@@ -76,6 +80,33 @@ def get_implementation_planner_user_prompt(
         trends = market_intelligence['industry_trends'][:2]  # Top 2 trends
         market_context = f"\n\nMarket Trends:\n" + "\n".join([f"- {t.get('trend', '')}" for t in trends])
 
+    competitor_context = ""
+    if competitor_analysis:
+        risk = competitor_analysis.get('competitive_risk_level') or competitor_analysis.get('risk_level')
+        response = competitor_analysis.get('expected_response_time_sprints') or competitor_analysis.get('time_to_replicate_months')
+        differentiators = competitor_analysis.get('differentiation_factors', []) or competitor_analysis.get('differentiators', [])
+        competitor_context = "\n\nCompetitive Landscape:\n"
+        if risk:
+            competitor_context += f"- Risk Level: {risk}\n"
+        if response:
+            suffix = "sprints" if isinstance(response, int) else ""
+            competitor_context += f"- Expected Copy Time: {response} {suffix}\n"
+        if differentiators:
+            competitor_context += f"- Differentiation Focus: {', '.join(differentiators[:3])}\n"
+
+    roi_context = ""
+    if roi_scenarios:
+        base = roi_scenarios.get('base_case', {})
+        best = roi_scenarios.get('best_case', {})
+        worst = roi_scenarios.get('worst_case', {})
+        roi_context = "\n\nROI Targets:"
+        if base:
+            roi_context += f"\n- Base Case ROI: {base.get('roi_percent', 'N/A')}% (payback {base.get('payback_period_months', 'N/A')} mo)"
+        if best:
+            roi_context += f"\n- Upside ROI: {best.get('roi_percent', 'N/A')}%"
+        if worst:
+            roi_context += f"\n- Downside ROI: {worst.get('roi_percent', 'N/A')}%"
+
     return f"""Feature to Plan: {feature_name}
 
 Description:
@@ -86,7 +117,7 @@ Engineer Analysis:
 - Team Size: {engineers} engineers
 - Total Cost: ${cost:,}
 - Required Skills: {', '.join(skills) if skills else 'Not specified'}
-{similar_context}{market_context}
+{similar_context}{market_context}{competitor_context}{roi_context}
 
 Generate an implementation plan in the following JSON format:
 

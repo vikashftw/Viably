@@ -8,6 +8,7 @@ Takes the full Viably analysis (all agents) and generates:
 - Implementation context for Postman integration
 """
 
+import asyncio
 import logging
 import json
 import os
@@ -35,14 +36,33 @@ class ImplementationPlannerAgent(BaseAgent):
         super().__init__()
         logger.info("Implementation Planner Agent initialized")
 
+    async def plan(self, analysis_bundle: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run implementation planning without blocking the event loop.
+
+        Args:
+            analysis_bundle: Dictionary containing all agent outputs required for planning.
+        """
+        return await asyncio.to_thread(
+            self.analyze,
+            analysis_bundle["feature_name"],
+            analysis_bundle["feature_description"],
+            analysis_bundle["engineer_analysis"],
+            analysis_bundle.get("similar_features"),
+            analysis_bundle.get("market_intelligence"),
+            analysis_bundle.get("competitor_analysis"),
+            roi_scenarios=analysis_bundle.get("roi_scenarios")
+        )
+
     def analyze(
         self,
         feature_name: str,
         feature_description: str,
         engineer_analysis: Dict[str, Any],
-        similar_features: List[Dict[str, Any]] = None,
+        similar_features: Dict[str, Any] = None,
         market_intelligence: Dict[str, Any] = None,
         competitor_analysis: Dict[str, Any] = None,
+        roi_scenarios: Dict[str, Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -55,6 +75,7 @@ class ImplementationPlannerAgent(BaseAgent):
             similar_features: Output from Similar Feature Agent (optional)
             market_intelligence: Output from Market Intelligence Agent (optional)
             competitor_analysis: Output from Competitor Agent (optional)
+            roi_scenarios: Output from ROI Calculator Agent (optional)
             **kwargs: Additional parameters
 
         Returns:
@@ -79,21 +100,23 @@ class ImplementationPlannerAgent(BaseAgent):
                 "implementation_context": str
             }
         """
+        similar_projects = similar_features.get("similar_projects") if similar_features else []
+
         try:
             # Step 1: Extract search patterns from feature description and similar projects
             search_patterns = self._extract_search_patterns(
                 feature_description,
-                similar_features
+                similar_projects
             )
 
             # Step 2: Determine file types based on skills required
-            file_types = self._determine_file_types(engineer_analysis, similar_features)
+            file_types = self._determine_file_types(engineer_analysis, similar_projects)
 
             # Step 3: Suggest directory structure
             suggested_directories = self._suggest_directories(
                 feature_name,
                 engineer_analysis,
-                similar_features
+                similar_projects
             )
 
             # Step 4: Generate task breakdown using LLM
@@ -103,8 +126,10 @@ class ImplementationPlannerAgent(BaseAgent):
                 feature_name=feature_name,
                 feature_description=feature_description,
                 engineer_analysis=engineer_analysis,
-                similar_features=similar_features,
-                market_intelligence=market_intelligence
+                similar_features=similar_projects,
+                market_intelligence=market_intelligence,
+                competitor_analysis=competitor_analysis,
+                roi_scenarios=roi_scenarios
             )
 
             response = self._call_llm(
@@ -134,7 +159,9 @@ class ImplementationPlannerAgent(BaseAgent):
                     "feature_name": feature_name,
                     "estimated_sprints": engineer_analysis.get("estimated_sprints") or engineer_analysis.get("duration_weeks", 0) // 2,
                     "team_size": engineer_analysis.get("estimated_engineers") or engineer_analysis.get("team_size", 0),
-                    "analysis_timestamp": datetime.now().isoformat()
+                    "analysis_timestamp": datetime.now().isoformat(),
+                    "competitive_risk_level": (competitor_analysis or {}).get("competitive_risk_level"),
+                    "roi_summary": self._summarize_roi(roi_scenarios)
                 }
             }
 
@@ -372,3 +399,20 @@ class ImplementationPlannerAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Failed to save implementation plan: {str(e)}")
             # Don't raise - saving is optional
+
+    def _summarize_roi(self, roi_scenarios: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract quick ROI signals for metadata/logging.
+        """
+        if not roi_scenarios:
+            return {}
+
+        summary = {}
+        for key in ("worst_case", "base_case", "best_case"):
+            scenario = roi_scenarios.get(key, {})
+            if scenario:
+                summary[f"{key}_roi_percent"] = scenario.get("roi_percent")
+                summary[f"{key}_payback_months"] = scenario.get("payback_period_months")
+
+        summary["recommended"] = roi_scenarios.get("recommended_scenario")
+        return summary
