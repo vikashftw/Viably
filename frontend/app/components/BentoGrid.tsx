@@ -5,31 +5,27 @@ import { Box3 } from './Boxes/Box3';
 import { Box4 } from './Boxes/Box4';
 import { Box5 } from './Boxes/Box5';
 import { Box6 } from './Boxes/Box6';
-import { Box7 } from './Boxes/Box7';
 
 export const BentoGrid = () => {
   return (
     <div className="grid grid-cols-3 grid-rows-3 gap-4 h-full">
-      <div className="col-span-1 row-span-1">
+      <div className="col-span-1 row-span-2">
         <Box1 />
       </div>
       <div className="col-span-1 row-span-1">
         <Box2 />
       </div>
-      <div className="col-span-1 row-span-1">
+      <div className="col-span-1 row-span-2">
         <Box3 />
       </div>
-      <div className="col-span-1 row-span-2">
+      <div className="col-span-1 row-span-1">
         <Box4 />
       </div>
       <div className="col-span-1 row-span-1">
         <Box5 />
       </div>
-      <div className="col-span-1 row-span-1">
-        <Box6 />
-      </div>
       <div className="col-span-2 row-span-1">
-        <Box7 />
+        <Box6 />
       </div>
     </div>
   );
