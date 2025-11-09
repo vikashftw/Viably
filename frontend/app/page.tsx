@@ -1,6 +1,33 @@
-import { Plus, Bell, User, GitBranch, Star, Eye, Scale, CheckCircle, XCircle } from 'lucide-react';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Plus, Bell, User, GitBranch, Star, Eye, Scale, CheckCircle, XCircle, Link, Zap, ZapOff } from 'lucide-react';
 
 export default function Dashboard() {
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+
+  useEffect(() => {
+    const checkJiraStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/jira/status');
+        const data = await response.json();
+        setIsJiraConnected(data.connected);
+      } catch (error) {
+        console.error('Failed to fetch Jira status:', error);
+      }
+    };
+    checkJiraStatus();
+  }, []);
+
+  const handleDisconnect = async () => {
+    try {
+      await fetch('http://localhost:8000/api/jira/disconnect', { method: 'POST' });
+      setIsJiraConnected(false);
+    } catch (error) {
+      console.error('Failed to disconnect from Jira:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -26,12 +53,29 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Jira Integration</h2>
-              <p className="text-gray-500 dark:text-gray-400 mt-1">Connect your Jira account to simulate feature viability.</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
+                {isJiraConnected
+                  ? 'Your Jira account is connected.'
+                  : 'Connect your Jira account to simulate feature viability.'}
+              </p>
             </div>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center space-x-2 transition duration-300">
-              <Plus className="w-5 h-5" />
-              <span>Connect to Jira</span>
-            </button>
+            {isJiraConnected ? (
+              <button
+                onClick={handleDisconnect}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg flex items-center space-x-2 transition duration-300"
+              >
+                <ZapOff className="w-5 h-5" />
+                <span>Disconnect from Jira</span>
+              </button>
+            ) : (
+              <a
+                href="http://localhost:8000/api/jira/connect"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center space-x-2 transition duration-300"
+              >
+                <Zap className="w-5 h-5" />
+                <span>Connect to Jira</span>
+              </a>
+            )}
           </div>
           
           <div className="mt-8">
