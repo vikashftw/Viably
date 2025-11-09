@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -9,12 +9,14 @@ import logging
 import httpx
 from pathlib import Path
 
+from agents.orchestrator import Orchestrator
 from agents.orchestrator_v2 import OrchestratorV2
 from agents.engineer_agent import EngineerAgent
 from agents.competitor_agent import CompetitorAgent
 from agents.market_intelligence_agent import MarketIntelligenceAgent
 from agents.similar_feature_agent import SimilarFeatureAgent
 from agents.roi_calculator_agent import ROICalculatorAgent
+from routers import jira
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -26,10 +28,10 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS for frontend
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "*"],  # Allow frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,6 +66,9 @@ class TriggerImplementationRequest(BaseModel):
     analysis_id: str
     target_repo: Dict[str, Any]
 
+# Include Jira router
+app.include_router(jira.router, prefix="/api/jira", tags=["jira"])
+
 # Health check
 @app.get("/")
 async def root():
@@ -83,11 +88,13 @@ async def root():
             "/api/analyze",
             "/api/analyze-complete",
             "/api/trigger-implementation",
-            "/api/analysis/{analysis_id}"
+            "/api/analysis/{analysis_id}",
+            "/api/jira/*"
         ]
     }
 
 # Original endpoint - kept for backward compatibility
+
 @app.post("/api/analyze")
 async def analyze_feature(request: AnalyzeRequest):
     """

@@ -63,3 +63,4 @@ GEMINI.md
 CLAUDE.md
 /backend/data/analysis_history
 .claude/agents/feature-implementation-agent.md
+./gemini

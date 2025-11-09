@@ -30,6 +30,33 @@ export default function Dashboard() {
     checkJiraStatus();
   }, []);
 
+  useEffect(() => {
+    if (isJiraConnected) {
+      const fetchBacklog = async () => {
+        try {
+          const response = await fetch('http://localhost:8000/api/jira/backlog');
+          const data = await response.json();
+          console.log('Jira Backlog:', data);
+        } catch (error) {
+          console.error('Failed to fetch Jira backlog:', error);
+        }
+      };
+      fetchBacklog();
+    }
+  }, [isJiraConnected]);
+
+  const handleConnect = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/jira/connect');
+      const data = await response.json();
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } catch (error) {
+      console.error('Failed to connect to Jira:', error);
+    }
+  };
+
   const handleDisconnect = async () => {
     try {
       await fetch('http://localhost:8000/api/jira/disconnect', { method: 'POST' });
@@ -270,6 +297,50 @@ export default function Dashboard() {
                   'Analyze Feature'
                 )}
               </button>
+            </div>
+
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-4">Simulation Scenarios</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">BNPL Feature</h4>
+                  <span className="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full dark:bg-green-900 dark:text-green-300">Active</span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">"Buy Now, Pay Later" option for checkout.</p>
+                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center space-x-1">
+                    <Star className="w-4 h-4 text-yellow-500" />
+                    <span>4.8</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Eye className="w-4 h-4" />
+                    <span>1.2k Views</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">AI Assistant</h4>
+                  <span className="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full dark:bg-yellow-900 dark:text-yellow-300">Pending</span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">In-app AI helper for customer support.</p>
+                 <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center space-x-1">
+                    <Star className="w-4 h-4 text-gray-400" />
+                    <span>N/A</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Eye className="w-4 h-4" />
+                    <span>560 Views</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-dashed border-gray-400 dark:border-gray-600 text-center flex flex-col justify-center items-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                  <Plus className="w-8 h-8 text-gray-400 mb-2"/>
+                  <h4 className="font-semibold text-gray-600 dark:text-gray-400">New Scenario</h4>
+                  <p className="text-gray-400 text-sm">Create a new simulation</p>
+              </div>
             </div>
           </form>
 

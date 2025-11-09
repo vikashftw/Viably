@@ -404,3 +404,9 @@ python -c "from agents.engineer_agent import EngineerAgent; a = EngineerAgent();
 
 **Built for NVIDIA + PNC Hackathon 2025**
 **14-hour sprint | Multi-agent AI | Production-ready code**
+
+
+
+
+run app:
+uvicorn main:app --reload
