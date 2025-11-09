@@ -28,18 +28,11 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
         upskilling_insights: {}
       };
 
-      const targetRepo = {
-        owner: 'pnc-bank',
-        repo: 'banking-platform',
-        branch: 'main'
-      };
-
       const response = await fetch('http://localhost:3002/api/implementation-flow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          viably_analysis: viablyAnalysis,
-          target_repo: targetRepo
+          viably_analysis: viablyAnalysis
         })
       });
 
