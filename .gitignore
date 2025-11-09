@@ -60,3 +60,5 @@ logs/
 *.tmp
 .cache/
 GEMINI.md
+CLAUDE.md
+/backend/data/analysis_history
