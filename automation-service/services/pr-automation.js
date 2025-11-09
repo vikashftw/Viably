@@ -19,6 +19,15 @@ export async function createPullRequest(targetRepo, implementation, assignments,
 
   console.log(`[GitHub] Creating PR in ${owner}/${repo}`);
 
+  // DEBUG LOG
+  console.log('[DEBUG] Attempting to get ref with:', {
+    owner,
+    repo,
+    baseBranch,
+    tokenExists: !!process.env.GITHUB_TOKEN,
+    tokenLast4: process.env.GITHUB_TOKEN ? process.env.GITHUB_TOKEN.slice(-4) : 'N/A'
+  });
+
   try {
     // Get base branch SHA
     const { data: refData } = await octokit.git.getRef({
