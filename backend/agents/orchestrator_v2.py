@@ -10,6 +10,9 @@ from .base_agent import BaseAgent
 from .engineer_agent import EngineerAgent
 from .competitor_agent import CompetitorAgent
 from utils.upskilling import get_tracker
+from agents.market_intelligence_agent import MarketIntelligenceAgent
+from agents.similar_feature_agent import SimilarFeatureAgent
+from agents.roi_calculator_agent import ROICalculatorAgent
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,10 @@ class OrchestratorV2(BaseAgent):
         self.engineer = EngineerAgent(use_vector_embeddings=use_vector_embeddings)
         self.competitor = CompetitorAgent()
         self.upskilling_tracker = get_tracker()
+        # NEW AGENTS
+        self.market_intel = MarketIntelligenceAgent()
+        self.similar_features = SimilarFeatureAgent(use_vector_embeddings)
+        self.roi_calculator = ROICalculatorAgent()
         logger.info("OrchestratorV2 initialized")
 
     def analyze(
@@ -99,6 +106,35 @@ class OrchestratorV2(BaseAgent):
                 "competitive_risk_level": competitor_result.get("competitive_risk_level", "MEDIUM")
             }
 
+            # NEW: Market intelligence
+            logger.info("Step 2.1: Running Market Intelligence Agent...")
+            market_intel_result = self.market_intel.analyze(
+                feature_name=feature_name,
+                industry=industry,
+                config={
+                    "search_market_size": True,
+                    "search_competitors": True  # Optional: set to False to save tokens
+                }
+            )
+
+            # NEW: Similar features (adds transparency to engineer estimate)
+            logger.info("Step 2.2: Running Similar Features Agent...")
+            similar_features_result = self.similar_features.analyze(
+                feature_name=feature_name,
+                feature_description=feature_description,
+                estimated_sprints=engineer_analysis["estimated_sprints"]
+            )
+
+            # NEW: ROI calculation
+            logger.info("Step 2.3: Running ROI Calculator Agent...")
+            roi_result = self.roi_calculator.analyze(
+                feature_name=feature_name,
+                cost=engineer_analysis["estimated_cost_usd"],
+                similar_projects=similar_features_result["similar_projects"],
+                target_users=6_000_000,  # 10% of PNC's 60M customers
+                industry=industry
+            )
+
             # Step 3: Generate overall recommendation
             logger.info("Step 3: Synthesizing recommendation...")
             recommendation = self._generate_recommendation(
@@ -126,7 +162,12 @@ class OrchestratorV2(BaseAgent):
                 "engineer_analysis": engineer_analysis,
                 "competitor_analysis": competitor_analysis,
                 "overall_recommendation": recommendation,
-                "upskilling_insights": upskilling_insights
+                "upskilling_insights": upskilling_insights,
+
+                # NEW SECTIONS
+                "market_intelligence": market_intel_result,
+                "similar_features": similar_features_result,
+                "roi_projections": roi_result
             }
 
             logger.info("=== ORCHESTRATOR V2: Analysis complete ===")
