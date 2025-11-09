@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Activity, CheckCircle, AlertCircle, TrendingUp, Clock, Zap } from 'lucide-react';
 import { useAnalysisData } from '../AnalysisProvider';
 import { LoadingStateCard, ErrorStateCard } from './BoxState';
@@ -11,11 +11,47 @@ interface ActivityItem {
   title: string;
   description: string;
   timestamp: string;
+  timestampMs: number;
   icon: React.ReactNode;
 }
 
+const getRelativeTime = (timestampMs: number): string => {
+  const now = Date.now();
+  const diff = now - timestampMs;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (seconds < 10) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
 export const Box4 = () => {
   const { data, loading, error, refetch } = useAnalysisData();
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Auto-refresh data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (data) {
+        refetch();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [data, refetch]);
+
+  // Update timestamps every 5 seconds for live feel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 5000); // 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (loading) {
     return <LoadingStateCard title="Activity Feed" />;
@@ -34,6 +70,7 @@ export const Box4 = () => {
   // Generate activity feed from analysis data
   const activities: ActivityItem[] = [];
   let activityId = 1;
+  const now = Date.now();
 
   // Analysis completed
   if (data) {
@@ -43,6 +80,7 @@ export const Box4 = () => {
       title: 'Analysis Completed',
       description: `Feature "${data.feature_name}" analyzed successfully`,
       timestamp: 'Just now',
+      timestampMs: now - 10000, // 10 seconds ago
       icon: <CheckCircle className="w-4 h-4" />,
     });
   }
@@ -56,6 +94,7 @@ export const Box4 = () => {
       title: 'Build Estimation Ready',
       description: `${eng.estimated_sprints || 0} sprints, ${eng.estimated_engineers || 0} engineers, $${eng.estimated_cost_usd ? (eng.estimated_cost_usd / 1000).toFixed(0) : '0'}K cost`,
       timestamp: '2 min ago',
+      timestampMs: now - 120000, // 2 minutes ago
       icon: <Zap className="w-4 h-4" />,
     });
   }
@@ -69,6 +108,7 @@ export const Box4 = () => {
       title: 'Competitor Scan Complete',
       description: `Found ${comp.key_competitors?.length || 0} competitors - ${comp.competitive_risk_level || 'UNKNOWN'} risk`,
       timestamp: '3 min ago',
+      timestampMs: now - 180000, // 3 minutes ago
       icon: <AlertCircle className="w-4 h-4" />,
     });
   }
@@ -82,6 +122,7 @@ export const Box4 = () => {
       title: 'ROI Projection Generated',
       description: `${roi.roi_percent?.toFixed(0) || '0'}% ROI, ${roi.payback_period_months?.toFixed(1) || '0'} month payback`,
       timestamp: '4 min ago',
+      timestampMs: now - 240000, // 4 minutes ago
       icon: <TrendingUp className="w-4 h-4" />,
     });
   }
@@ -97,6 +138,7 @@ export const Box4 = () => {
       title: 'Market Data Retrieved',
       description: `$${tamValue}B TAM, ${cagrValue}% CAGR`,
       timestamp: '5 min ago',
+      timestampMs: now - 300000, // 5 minutes ago
       icon: <Activity className="w-4 h-4" />,
     });
   }
@@ -110,6 +152,7 @@ export const Box4 = () => {
       title: 'Strategic Recommendation',
       description: `Decision: ${rec.decision?.toUpperCase() || 'PENDING'} with ${rec.confidence ? (rec.confidence * 100).toFixed(0) : '0'}% confidence`,
       timestamp: '6 min ago',
+      timestampMs: now - 360000, // 6 minutes ago
       icon: <CheckCircle className="w-4 h-4" />,
     });
   }
@@ -142,8 +185,9 @@ export const Box4 = () => {
           <Activity className="w-5 h-5 text-blue-300" />
           Activity Feed
         </h2>
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700">
-          Live updates
+        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-500 border border-blue-400/50 shadow-lg shadow-blue-500/20 flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+          Live
         </span>
       </div>
 
@@ -167,7 +211,7 @@ export const Box4 = () => {
                       </h3>
                       <span className="text-xs text-slate-500 flex items-center gap-1 flex-shrink-0">
                         <Clock className="w-3 h-3" />
-                        {activity.timestamp}
+                        {getRelativeTime(activity.timestampMs)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
@@ -188,10 +232,12 @@ export const Box4 = () => {
       </div>
 
       <div className="mt-4 pt-3 border-t border-slate-700 text-xs text-slate-400 flex items-center justify-between">
-        <span>Real-time analysis events</span>
-        <span className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          Active
+        <span className="flex items-center gap-1.5">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          Auto-refresh every 30s
+        </span>
+        <span className="text-blue-400 font-semibold">
+          {activities.length} events
         </span>
       </div>
     </div>

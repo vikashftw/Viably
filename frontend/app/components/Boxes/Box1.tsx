@@ -7,19 +7,19 @@ import { LoadingStateCard, ErrorStateCard } from './BoxState';
 
 const riskStyles: Record<string, { bg: string; text: string; badge: string }> = {
   LOW: {
-    bg: 'from-emerald-900 to-emerald-800',
-    text: 'text-emerald-300',
-    badge: 'bg-emerald-500/20 text-emerald-100 border-emerald-500/50',
+    bg: 'from-emerald-600 via-teal-600 to-emerald-700',
+    text: 'text-emerald-100',
+    badge: 'bg-emerald-400/30 text-emerald-50 border-emerald-400/60',
   },
   MEDIUM: {
-    bg: 'from-amber-900 to-amber-800',
-    text: 'text-amber-300',
-    badge: 'bg-amber-500/20 text-amber-100 border-amber-500/50',
+    bg: 'from-amber-500 via-orange-500 to-amber-600',
+    text: 'text-amber-50',
+    badge: 'bg-amber-300/30 text-amber-50 border-amber-300/60',
   },
   HIGH: {
-    bg: 'from-red-900 to-red-800',
-    text: 'text-red-300',
-    badge: 'bg-red-500/20 text-red-100 border-red-500/50',
+    bg: 'from-red-600 via-rose-600 to-red-700',
+    text: 'text-red-50',
+    badge: 'bg-red-400/30 text-red-50 border-red-400/60',
   },
 };
 
@@ -83,20 +83,20 @@ export const Box1 = () => {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white/10 rounded-lg p-3 border border-white/20">
-          <div className="text-xs uppercase text-slate-300 mb-1">Competitors</div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 border border-white/30 shadow-lg">
+          <div className="text-xs uppercase text-white/90 mb-1 font-semibold">Competitors</div>
           <div className="text-2xl font-bold">
             {competitor.key_competitors?.length || 0}
           </div>
-          <p className="text-xs text-slate-400 mt-1">Active threats</p>
+          <p className="text-xs text-white/80 mt-1">Active threats</p>
         </div>
-        <div className="bg-white/10 rounded-lg p-3 border border-white/20">
-          <div className="text-xs uppercase text-slate-300 mb-1">Response Time</div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 border border-white/30 shadow-lg">
+          <div className="text-xs uppercase text-white/90 mb-1 font-semibold">Response Time</div>
           <div className="text-2xl font-bold flex items-baseline gap-1">
             {competitor.expected_response_time_sprints || '—'}
             <span className="text-sm font-normal">sprints</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-white/80 mt-1">
             ~{(competitor.expected_response_time_sprints || 0) * 2} weeks
           </p>
         </div>
@@ -104,7 +104,7 @@ export const Box1 = () => {
 
       {/* Top Competitors List */}
       <div className="flex-1 overflow-y-auto">
-        <div className="text-xs uppercase text-slate-300 mb-2 flex items-center gap-2">
+        <div className="text-xs uppercase text-white/80 mb-2 flex items-center gap-2 font-semibold">
           <TrendingUp className="w-3 h-3" />
           Key Competitors
         </div>
@@ -112,11 +112,11 @@ export const Box1 = () => {
           {competitor.key_competitors?.slice(0, 5).map((comp: string, i: number) => (
             <div
               key={i}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm hover:bg-white/10 transition-colors"
+              className="bg-white/15 backdrop-blur-sm border border-white/20 rounded-lg px-3 py-2 text-sm hover:bg-white/25 transition-all duration-200 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium">{comp}</span>
-                <span className="text-xs text-slate-400">#{i + 1}</span>
+                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">#{i + 1}</span>
               </div>
             </div>
           ))}
@@ -125,18 +125,18 @@ export const Box1 = () => {
 
       {/* Response Strategy */}
       {competitor.response_play && (
-        <div className="mt-4 pt-4 border-t border-white/20">
-          <div className="text-xs uppercase text-slate-300 mb-2">
+        <div className="mt-4 pt-4 border-t border-white/30">
+          <div className="text-xs uppercase text-white/80 mb-2 font-semibold">
             Expected Response
           </div>
-          <p className="text-sm text-slate-200 leading-relaxed">
+          <p className="text-sm text-white/95 leading-relaxed">
             {competitor.response_play}
           </p>
         </div>
       )}
 
       {/* Footer */}
-      <div className="mt-4 pt-3 border-t border-white/10 text-xs text-slate-400 flex items-center gap-2">
+      <div className="mt-4 pt-3 border-t border-white/20 text-xs text-white/70 flex items-center gap-2">
         <Clock className="w-3 h-3" />
         <span>Updated in real-time via Serper API</span>
       </div>

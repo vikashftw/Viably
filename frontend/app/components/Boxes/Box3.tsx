@@ -47,8 +47,7 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
         competitor_analysis: analysisData.competitor_analysis || {},
         similar_features: analysisData.similar_features || {},
         roi_projections: analysisData.roi_projections || {},
-        overall_recommendation: analysisData.overall_recommendation || {},
-        upskilling_insights: analysisData.upskilling_insights || {}
+        overall_recommendation: analysisData.overall_recommendation || {}
       };
 
       const response = await fetch('http://localhost:3002/api/implementation-flow', {
