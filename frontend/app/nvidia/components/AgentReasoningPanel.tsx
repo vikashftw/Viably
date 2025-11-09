@@ -5,7 +5,7 @@ interface AgentState {
   confidence?: number;
   tool_calls?: Array<{ tool: string; action: string }>;
   elapsed_ms?: number;
-  result?: any;
+  result?: Record<string, unknown> | null;
 }
 
 interface Props {

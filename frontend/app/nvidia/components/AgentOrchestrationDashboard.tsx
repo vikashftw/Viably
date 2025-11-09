@@ -1,14 +1,32 @@
-import AgentCard from './AgentCard';
-import MetricCard from './MetricCard';
+import { useMemo, useState } from 'react';
 
-interface AgentState {
+export interface AgentState {
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   reasoning?: string[];
   confidence?: number;
   tool_calls?: Array<{ tool: string; action: string }>;
   elapsed_ms?: number;
-  result?: any;
+  result?: Record<string, unknown> | null;
+}
+
+export interface AgentMeta {
+  id: string;
+  name: string;
+  role: string;
+  signal: string;
+  icon: string;
+  dependencies?: string[];
+}
+
+export interface AgentGroup {
+  id: string;
+  wave: number;
+  label: string;
+  codename: string;
+  description: string;
+  accent: string;
+  agents: AgentMeta[];
 }
 
 interface WaveTimings {
@@ -21,166 +39,179 @@ interface WaveTimings {
 interface Props {
   agents: Record<string, AgentState>;
   waveTimings: WaveTimings;
+  groups: AgentGroup[];
   onAgentClick: (agent: string) => void;
 }
 
-export default function AgentOrchestrationDashboard({ agents, waveTimings, onAgentClick }: Props) {
-  const completedAgents = Object.values(agents).filter(a => a.status === 'completed').length;
-  const totalAgents = 6;
+type WaveTimingKey = keyof WaveTimings;
+const waveKey = (wave: number): WaveTimingKey => `wave${wave}_ms` as WaveTimingKey;
+
+export default function AgentOrchestrationDashboard({ agents, waveTimings, groups, onAgentClick }: Props) {
+  const [activeAgents, setActiveAgents] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    groups.forEach(group => {
+      if (group.agents[0]) {
+        initial[group.id] = group.agents[0].id;
+      }
+    });
+    return initial;
+  });
+
+  const totalAgents = groups.reduce((count, group) => count + group.agents.length, 0);
+
+  const averageProgress = useMemo(() => {
+    if (!totalAgents) return 0;
+    const aggregate = groups.reduce((sum, group) => {
+      const groupSum = group.agents.reduce((inner, agent) => inner + (agents[agent.id]?.progress ?? 0), 0);
+      return sum + groupSum;
+    }, 0);
+    return Math.round(aggregate / totalAgents);
+  }, [agents, groups, totalAgents]);
+
+  const handleAgentSelect = (groupId: string, agentId: string) => {
+    setActiveAgents(prev => ({
+      ...prev,
+      [groupId]: agentId
+    }));
+  };
 
   return (
-    <div className="p-6 space-y-8 max-w-7xl mx-auto">
-      {/* Performance Metrics */}
-      <div className="grid grid-cols-4 gap-4">
-        <MetricCard
-          label="Total Agents"
-          value={totalAgents.toString()}
-          icon="🤖"
-        />
-        <MetricCard
-          label="Parallel Waves"
-          value="3"
-          icon="⚡"
-        />
-        <MetricCard
-          label="Total Time"
-          value={waveTimings.total_ms ? `${(waveTimings.total_ms / 1000).toFixed(1)}s` : '---'}
-          icon="⏱️"
-        />
-        <MetricCard
-          label="Speedup"
-          value="2.5x"
-          icon="🚀"
-          subtitle="vs sequential"
-        />
-      </div>
-
-      {/* Wave 1: Parallel Execution */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-white">
-            Wave 1: Independent Analysis
-          </h2>
-          {waveTimings.wave1_ms && (
-            <span className="text-green-400 text-sm">
-              Parallel Execution • {(waveTimings.wave1_ms / 1000).toFixed(1)}s
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          <AgentCard
-            name="Engineer Agent"
-            status={agents.engineer?.status || 'pending'}
-            progress={agents.engineer?.progress || 0}
-            icon="🔧"
-            description="Cost estimation via RAG"
-            onClick={() => onAgentClick('engineer')}
-          />
-          <AgentCard
-            name="Competitor Agent"
-            status={agents.competitor?.status || 'pending'}
-            progress={agents.competitor?.progress || 0}
-            icon="🏆"
-            description="Real-time competitive analysis"
-            onClick={() => onAgentClick('competitor')}
-          />
-          <AgentCard
-            name="Market Intelligence"
-            status={agents.market_intelligence?.status || 'pending'}
-            progress={agents.market_intelligence?.progress || 0}
-            icon="📊"
-            description="Market sizing & trends"
-            onClick={() => onAgentClick('market_intelligence')}
-          />
+    <div className="flex h-full flex-col gap-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Wave Telemetry</p>
+            <h2 className="text-xl font-semibold text-white">Live Group Status</h2>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avg Progress</p>
+            <p className="text-2xl font-semibold text-white">{averageProgress}%</p>
+            <p className="text-xs text-slate-500">
+              {waveTimings.total_ms ? `${(waveTimings.total_ms / 1000).toFixed(1)}s total` : 'Awaiting runtime'}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Dependency Arrow */}
-      <div className="flex justify-center">
-        <div className="text-green-400 text-4xl">↓</div>
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
+        {groups.map(group => {
+          const groupProgress = group.agents.length
+            ? Math.round(
+                group.agents.reduce((sum, agent) => sum + (agents[agent.id]?.progress ?? 0), 0) /
+                  group.agents.length
+              )
+            : 0;
+          const completedAgents = group.agents.filter(agent => agents[agent.id]?.status === 'completed').length;
+          const waveDurationMs = waveTimings[waveKey(group.wave)];
+          const selectedAgentId = activeAgents[group.id] || group.agents[0]?.id || '';
+          const selectedMeta = group.agents.find(agent => agent.id === selectedAgentId) || group.agents[0];
+          const selectedState = selectedAgentId ? agents[selectedAgentId] : undefined;
+          const reasoningLines = (selectedState?.reasoning ?? []).slice(-5);
+          const latestToolCall =
+            selectedState?.tool_calls && selectedState.tool_calls.length > 0
+              ? selectedState.tool_calls[selectedState.tool_calls.length - 1]
+              : undefined;
+
+          return (
+            <div
+              key={group.id}
+              className="relative flex flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-[#070911] via-[#05060c] to-[#030408] p-4"
+            >
+              <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${group.accent} opacity-50`} />
+              <div className="relative z-10 flex flex-col gap-4">
+                <div>
+                  <p className="text-[0.65rem] uppercase tracking-[0.55em] text-slate-400">{group.codename}</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-white">{group.label}</h3>
+                    <span className="text-xs text-slate-400">
+                      {completedAgents}/{group.agents.length} ready
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">{group.description}</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-[0.65rem] uppercase tracking-[0.4em] text-slate-500">
+                    <span>Progress</span>
+                    <span>{groupProgress}%</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-violet-300 to-amber-200 transition-all duration-500"
+                      style={{ width: `${groupProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[0.65rem] uppercase tracking-[0.4em] text-slate-500">
+                    {waveDurationMs ? `${(waveDurationMs / 1000).toFixed(1)}s elapsed` : 'waiting'}
+                  </p>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-[#090d18]/70 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={selectedAgentId}
+                        onChange={event => handleAgentSelect(group.id, event.target.value)}
+                        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                      >
+                        {group.agents.map(agent => (
+                          <option key={agent.id} value={agent.id} className="bg-[#05070d] text-white">
+                            {agent.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => selectedAgentId && onAgentClick(selectedAgentId)}
+                        disabled={!selectedAgentId}
+                        className="rounded-xl border border-cyan-400/40 px-3 py-2 text-xs uppercase tracking-[0.3em] text-cyan-200 transition hover:border-cyan-200 disabled:opacity-40"
+                      >
+                        Inspect
+                      </button>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/5 bg-black/50 p-3">
+                      <div className="flex items-center justify-between text-xs text-slate-300">
+                        <span className="font-semibold">{selectedMeta?.role || 'Agent'}</span>
+                        <span className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-500">
+                          {selectedState?.status || 'pending'}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-violet-300 to-amber-200 transition-all duration-500"
+                          style={{ width: `${selectedState?.progress ?? 0}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-[0.6rem] uppercase tracking-[0.4em] text-cyan-200/80">
+                        {selectedMeta?.signal || 'Signal stream'}
+                      </p>
+                      <div className="mt-2 max-h-36 overflow-y-auto rounded-xl bg-[#05060c] p-3 font-mono text-[0.65rem] leading-relaxed text-cyan-100">
+                        {reasoningLines.length > 0 ? (
+                          reasoningLines.map((line, idx) => (
+                            <p key={`${selectedAgentId}-log-${idx}`} className="flex gap-2">
+                              <span className="text-cyan-400/70">{`${idx + 1}`.padStart(2, '0')}▕</span>
+                              <span className="flex-1">{line}</span>
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-slate-400">awaiting reasoning packets...</p>
+                        )}
+                        <div className="mt-2 border-t border-white/5 pt-2 text-[0.6rem] text-slate-400">
+                          <div>progress ▷ {selectedState?.progress ?? 0}%</div>
+                          <div>
+                            tool ▷ {latestToolCall ? `${latestToolCall.tool} · ${latestToolCall.action}` : 'pending'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-
-      {/* Wave 2: Dependent Agents */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-white">
-            Wave 2: Synthesis & Projection
-          </h2>
-          {waveTimings.wave2_ms && (
-            <span className="text-yellow-400 text-sm">
-              Uses Engineer Output • {(waveTimings.wave2_ms / 1000).toFixed(1)}s
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 max-w-3xl mx-auto">
-          <AgentCard
-            name="ROI Calculator"
-            status={agents.roi_calculator?.status || 'pending'}
-            progress={agents.roi_calculator?.progress || 0}
-            icon="💰"
-            description="3-scenario financial model"
-            dependencies={['engineer']}
-            onClick={() => onAgentClick('roi_calculator')}
-          />
-          <AgentCard
-            name="Similar Features"
-            status={agents.similar_features?.status || 'pending'}
-            progress={agents.similar_features?.progress || 0}
-            icon="🔍"
-            description="RAG-based cost validation"
-            dependencies={['engineer']}
-            onClick={() => onAgentClick('similar_features')}
-          />
-        </div>
-      </div>
-
-      {/* Dependency Arrow */}
-      <div className="flex justify-center">
-        <div className="text-green-400 text-4xl">↓</div>
-      </div>
-
-      {/* Wave 3: Final Synthesis */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-white">
-            Wave 3: Implementation Planning
-          </h2>
-          {waveTimings.wave3_ms && (
-            <span className="text-purple-400 text-sm">
-              Uses All Agent Outputs • {(waveTimings.wave3_ms / 1000).toFixed(1)}s
-            </span>
-          )}
-        </div>
-
-        <div className="max-w-md mx-auto">
-          <AgentCard
-            name="Implementation Planner"
-            status={agents.implementation_planner?.status || 'pending'}
-            progress={agents.implementation_planner?.progress || 0}
-            icon="📋"
-            description="Executable task breakdown"
-            dependencies={['engineer', 'competitor', 'market', 'roi', 'similar']}
-            onClick={() => onAgentClick('implementation_planner')}
-          />
-        </div>
-      </div>
-
-      {/* Total Timing */}
-      {waveTimings.total_ms && (
-        <div className="text-center p-6 bg-green-500/10 rounded-lg border border-green-500/20">
-          <p className="text-white text-xl">
-            Total Analysis Time:
-            <span className="ml-2 text-green-400 font-bold">
-              {(waveTimings.total_ms / 1000).toFixed(1)}s
-            </span>
-          </p>
-          <p className="text-gray-400 text-sm mt-2">
-            3-wave parallel execution • 2.5x faster than sequential
-          </p>
-        </div>
-      )}
     </div>
   );
 }
