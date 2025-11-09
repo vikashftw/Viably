@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Bell, User, GitBranch, Star, Eye, Scale, CheckCircle, XCircle, Link, Zap, ZapOff, ArrowLeft } from 'lucide-react';
+import { GitBranch, ArrowLeft } from 'lucide-react';
 import { AnalysisResults } from './components/AnalysisResults';
+import { JiraButton } from './components/JiraButton';
 
 export default function Dashboard() {
   const [isJiraConnected, setIsJiraConnected] = useState(false);
@@ -145,7 +146,7 @@ export default function Dashboard() {
           <div className="container mx-auto px-6 py-4 flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <GitBranch className="w-8 h-8 text-blue-600 dark:text-blue-500" />
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Product Sandbox</h1>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viability</h1>
             </div>
             <div className="flex items-center space-x-6">
               <button
@@ -155,13 +156,11 @@ export default function Dashboard() {
                 <ArrowLeft className="w-5 h-5" />
                 <span className="text-sm">Back to Input</span>
               </button>
-              <button className="relative text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-              <button className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
-                <User className="w-6 h-6" />
-              </button>
+              <JiraButton
+                isJiraConnected={isJiraConnected}
+                handleConnect={handleConnect}
+                handleDisconnect={handleDisconnect}
+              />
             </div>
           </div>
         </header>
@@ -190,49 +189,78 @@ export default function Dashboard() {
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <GitBranch className="w-8 h-8 text-blue-600 dark:text-blue-500" />
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Product Sandbox</h1>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viability</h1>
           </div>
           <div className="flex items-center space-x-6">
-            <button className="relative text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <button className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
-              <User className="w-6 h-6" />
-            </button>
+            <JiraButton
+              isJiraConnected={isJiraConnected}
+              handleConnect={handleConnect}
+              handleDisconnect={handleDisconnect}
+            />
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-8 flex justify-center items-center" style={{ minHeight: 'calc(100vh - 140px)' }}>
-        <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-center">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">
-              Jira Integration
-            </h2>
-            {isJiraConnected ? (
+        <div className="w-full max-w-2xl">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+            <form onSubmit={handleAnalyze} className="space-y-6">
               <div>
-                <p className="text-green-500 mb-4">Jira is connected.</p>
+                <label htmlFor="featureName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Feature Name</label>
+                <input
+                  type="text"
+                  id="featureName"
+                  value={featureName}
+                  onChange={(e) => setFeatureName(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="e.g., AI-powered financial assistant"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                <textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Describe the feature and its core functionality."
+                  required
+                ></textarea>
+              </div>
+              <div>
+                <label htmlFor="targetUser" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Target User</label>
+                <input
+                  type="text"
+                  id="targetUser"
+                  value={targetUser}
+                  onChange={(e) => setTargetUser(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="businessGoal" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Business Goal</label>
+                <input
+                  type="text"
+                  id="businessGoal"
+                  value={businessGoal}
+                  onChange={(e) => setBusinessGoal(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
                 <button
-                  onClick={handleDisconnect}
-                  className="px-6 py-3 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700"
+                  type="submit"
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  disabled={loading}
                 >
-                  Disconnect from Jira
+                  {loading ? 'Analyzing...' : 'Analyze'}
                 </button>
               </div>
-            ) : (
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  Connect to your Jira account to get started.
-                </p>
-                <button
-                  onClick={handleConnect}
-                  className="px-6 py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  Connect to Jira
-                </button>
-              </div>
-            )}
+            </form>
           </div>
         </div>
       </main>
