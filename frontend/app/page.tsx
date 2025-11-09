@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { GitBranch } from 'lucide-react';
 import { JiraButton } from './components/JiraButton';
 import { BentoGrid } from './components/BentoGrid';
+import { AnalysisProvider } from './components/AnalysisProvider';
+import type { BacklogItem } from './components/Boxes/Box3';
 
 export default function Dashboard() {
   const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [backlog, setBacklog] = useState([]);
+  const [backlog, setBacklog] = useState<BacklogItem[]>([]);
 
   useEffect(() => {
     const checkJiraStatus = async () => {
@@ -29,7 +31,7 @@ export default function Dashboard() {
           const response = await fetch('http://localhost:8000/api/jira/backlog');
           const data = await response.json();
           console.log('Jira Backlog:', data);
-          setBacklog(data.issues || []);
+          setBacklog((data.issues as BacklogItem[]) || []);
         } catch (error) {
           console.error('Failed to fetch Jira backlog:', error);
         }
@@ -54,6 +56,7 @@ export default function Dashboard() {
     try {
       await fetch('http://localhost:8000/api/jira/disconnect', { method: 'POST' });
       setIsJiraConnected(false);
+      setBacklog([]);
     } catch (error) {
       console.error('Failed to disconnect from Jira:', error);
     }
@@ -78,7 +81,9 @@ export default function Dashboard() {
       </header>
 
       <main className="flex-grow p-6">
-        <BentoGrid backlog={backlog} />
+        <AnalysisProvider>
+          <BentoGrid backlog={backlog} />
+        </AnalysisProvider>
       </main>
     </div>
   );

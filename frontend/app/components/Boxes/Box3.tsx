@@ -1,6 +1,12 @@
 import React from 'react';
 
-export const Box3 = ({ backlog }: { backlog: any[] }) => {
+export interface BacklogItem {
+  id: string;
+  summary: string;
+  status: string;
+}
+
+export const Box3 = ({ backlog }: { backlog: BacklogItem[] }) => {
   // Filter out issues with status 'Done'
   const filteredBacklog = backlog
     ? backlog.filter(issue => issue.status !== 'Done')
