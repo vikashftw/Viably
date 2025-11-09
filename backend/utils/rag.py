@@ -84,11 +84,12 @@ class RAGSystem:
                 # Create text representation of project
                 text = self._project_to_text(project)
 
-                # Generate embedding
+                # Generate embedding for passage (document)
                 response = self.client.embeddings.create(
                     input=text,
                     model=self.embeddings_model,
-                    encoding_format="float"
+                    encoding_format="float",
+                    extra_body={"input_type": "passage", "truncate": "NONE"}
                 )
                 self.embeddings[project_id] = np.array(response.data[0].embedding)
 
@@ -180,7 +181,8 @@ Complexity: {project.get('complexity', '')}"""
             response = self.client.embeddings.create(
                 input=query,
                 model=self.embeddings_model,
-                encoding_format="float"
+                encoding_format="float",
+                extra_body={"input_type": "query", "truncate": "NONE"}
             )
             query_embedding = np.array(response.data[0].embedding)
 

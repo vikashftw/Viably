@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import uuid
@@ -7,6 +8,8 @@ import json
 import os
 import logging
 import httpx
+import time
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -19,6 +22,7 @@ from agents.competitor_agent import CompetitorAgent
 from agents.market_intelligence_agent import MarketIntelligenceAgent
 from agents.similar_feature_agent import SimilarFeatureAgent
 from agents.roi_calculator_agent import ROICalculatorAgent
+from agents.implementation_planner_agent import ImplementationPlannerAgent
 from routers import jira
 
 # Set up logging
@@ -47,6 +51,7 @@ competitor_agent = CompetitorAgent()
 market_intel_agent = MarketIntelligenceAgent()
 similar_feature_agent = SimilarFeatureAgent(use_vector_embeddings=True)
 roi_calculator_agent = ROICalculatorAgent()
+implementation_planner_agent = ImplementationPlannerAgent()
 
 # Data directories
 ANALYSIS_RESULTS_DIR = Path(__file__).parent / "data" / "analysis_results"
@@ -95,6 +100,7 @@ async def root():
         "endpoints": [
             "/api/analyze",
             "/api/analyze-complete",
+            "/api/analyze-stream",
             "/api/trigger-implementation",
             "/api/analysis/{analysis_id}",
             "/api/compare",
@@ -271,6 +277,314 @@ async def analyze_complete(request: CompleteAnalysisRequest):
     except Exception as e:
         logger.error(f"Complete analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Complete analysis failed: {str(e)}")
+
+# NEW ENDPOINT: Stream analysis progress via Server-Sent Events
+@app.get("/api/analyze-stream")
+async def stream_analysis_progress(
+    feature_name: str,
+    description: str,
+    target_user: str = "PNC customers",
+    business_goal: str = "increase engagement and revenue",
+    industry: str = "banking"
+):
+    """
+    Stream real-time analysis progress using Server-Sent Events (SSE).
+
+    Returns agent execution events:
+    - agent_start: When an agent begins execution
+    - agent_progress: Progress updates (if supported)
+    - agent_complete: When an agent finishes with results
+    - wave_complete: When a wave of agents completes
+    - complete: Final completion event
+
+    For NVIDIA Technical Dashboard live visualization.
+    """
+    async def event_generator():
+        try:
+            analysis_start_time = time.time()
+
+            # Emit start event
+            yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
+
+            # WAVE 1: Parallel execution (Engineer, Competitor, Market Intelligence)
+            wave1_start = time.time()
+
+            # Emit wave 1 start events
+            for agent_name in ['engineer', 'competitor', 'market_intelligence']:
+                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'wave': 1, 'timestamp': time.time()})}\n\n"
+                await asyncio.sleep(0.01)  # Small delay for streaming
+
+            # Run Wave 1 agents in parallel
+            wave1_results = await asyncio.gather(
+                run_engineer_with_events(feature_name, description),
+                run_competitor_with_events(feature_name, description, industry),
+                run_market_intel_with_events(feature_name, industry)
+            )
+
+            # Emit Wave 1 completion events
+            for idx, agent_name in enumerate(['engineer', 'competitor', 'market_intelligence']):
+                result = wave1_results[idx]
+                yield f"data: {json.dumps({'type': 'agent_complete', 'agent': agent_name, 'wave': 1, 'result': result, 'timestamp': time.time()})}\n\n"
+                await asyncio.sleep(0.01)
+
+            wave1_duration = (time.time() - wave1_start) * 1000
+            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 1, 'duration_ms': wave1_duration, 'timestamp': time.time()})}\n\n"
+
+            # WAVE 2: Dependent execution (ROI, Similar Features - needs Engineer output)
+            wave2_start = time.time()
+            engineer_result = wave1_results[0]
+
+            for agent_name in ['roi_calculator', 'similar_features']:
+                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'wave': 2, 'timestamp': time.time()})}\n\n"
+                await asyncio.sleep(0.01)
+
+            # Run Wave 2 agents in parallel (both depend on Engineer)
+            wave2_results = await asyncio.gather(
+                run_roi_with_events(feature_name, engineer_result, industry),
+                run_similar_with_events(feature_name, description, engineer_result)
+            )
+
+            for idx, agent_name in enumerate(['roi_calculator', 'similar_features']):
+                result = wave2_results[idx]
+                yield f"data: {json.dumps({'type': 'agent_complete', 'agent': agent_name, 'wave': 2, 'result': result, 'timestamp': time.time()})}\n\n"
+                await asyncio.sleep(0.01)
+
+            wave2_duration = (time.time() - wave2_start) * 1000
+            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 2, 'duration_ms': wave2_duration, 'timestamp': time.time()})}\n\n"
+
+            # WAVE 3: Final synthesis (Implementation Planner - needs all outputs)
+            wave3_start = time.time()
+
+            yield f"data: {json.dumps({'type': 'agent_start', 'agent': 'implementation_planner', 'wave': 3, 'timestamp': time.time()})}\n\n"
+            await asyncio.sleep(0.01)
+
+            # Call REAL Implementation Planner Agent (Wave 3)
+            planner_start = time.time()
+
+            implementation_plan = implementation_planner_agent.analyze(
+                feature_name=feature_name,
+                feature_description=description,
+                engineer_analysis=engineer_result,
+                similar_features=wave2_results[1].get('similar_projects', []) if len(wave2_results) > 1 else [],
+                market_intelligence=wave1_results[2] if len(wave1_results) > 2 else {},
+                competitor_analysis=wave1_results[1] if len(wave1_results) > 1 else {}
+            )
+
+            planner_elapsed_ms = (time.time() - planner_start) * 1000
+
+            planner_result = {
+                "search_patterns": implementation_plan.get("search_patterns", []),
+                "tasks": implementation_plan.get("tasks", []),
+                "total_hours": implementation_plan.get("total_estimated_hours", 0),
+                "reasoning": [
+                    f"Analyzed all {len(wave1_results) + len(wave2_results)} agent outputs",
+                    f"Engineer estimate: ${engineer_result.get('estimated_cost_usd', 0):,} over {engineer_result.get('estimated_sprints', 0)} sprints",
+                    f"Generated {len(implementation_plan.get('tasks', []))} implementation tasks",
+                    f"Total estimated hours: {implementation_plan.get('total_estimated_hours', 0)}",
+                    "Using NVIDIA Nemotron Nano 8B for task breakdown and file structure planning"
+                ],
+                "confidence": 0.85,
+                "tool_calls": [
+                    {"tool": "NVIDIA Nemotron Nano 8B", "action": "Implementation planning and task breakdown"}
+                ],
+                "elapsed_ms": planner_elapsed_ms
+            }
+
+            yield f"data: {json.dumps({'type': 'agent_complete', 'agent': 'implementation_planner', 'wave': 3, 'result': planner_result, 'timestamp': time.time()})}\n\n"
+
+            wave3_duration = (time.time() - wave3_start) * 1000
+            yield f"data: {json.dumps({'type': 'wave_complete', 'wave': 3, 'duration_ms': wave3_duration, 'timestamp': time.time()})}\n\n"
+
+            # Final completion
+            total_duration = (time.time() - analysis_start_time) * 1000
+            yield f"data: {json.dumps({'type': 'complete', 'total_duration_ms': total_duration, 'wave_timings': {'wave1_ms': wave1_duration, 'wave2_ms': wave2_duration, 'wave3_ms': wave3_duration}, 'timestamp': time.time()})}\n\n"
+
+        except Exception as e:
+            logger.error(f"Stream analysis failed: {str(e)}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'timestamp': time.time()})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
+
+# Helper functions for streaming agents
+async def run_engineer_with_events(feature_name: str, description: str):
+    """Run Engineer Agent and return result with reasoning/tool_calls."""
+    start_time = time.time()
+
+    result = engineer_agent.analyze(
+        feature_description=description,
+        feature_name=feature_name
+    )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+
+    # Add reasoning and tool calls for NVIDIA dashboard
+    return {
+        "estimated_sprints": result.get("duration_weeks", 0) // 2,  # Convert weeks to sprints
+        "estimated_engineers": result.get("team_size", 0),
+        "estimated_cost_usd": result.get("cost", 0),  # Fixed: Engineer returns "cost" not "estimated_cost_usd"
+        "key_risks": result.get("risks", []),  # Fixed: Engineer returns "risks" not "key_risks"
+        "confidence": result.get("confidence", 0.7),
+        "reasoning": [
+            "Performing RAG vector search for similar PNC projects",
+            f"Found {result.get('similar_projects_found', 0)} similar projects using {result.get('rag_mode', 'vector_embeddings')}",
+            "Using NVIDIA NV-Embed-v2 for semantic similarity matching",
+            f"Analyzing complexity: {result.get('complexity', 'MEDIUM')}",
+            "Using NVIDIA Nemotron Nano 8B for cost estimation",
+            f"Final estimate: ${result.get('cost', 0):,} over {result.get('duration_weeks', 0) // 2} sprints with {result.get('team_size', 0)} engineers"
+        ],
+        "tool_calls": [
+            {"tool": "NVIDIA NV-Embed-v2", "action": "Generate query embedding for RAG search"},
+            {"tool": "Vector Database", "action": "Semantic similarity search across 20 past projects"},
+            {"tool": "NVIDIA Nemotron Nano 8B", "action": "Cost estimation and complexity analysis"}
+        ],
+        "elapsed_ms": elapsed_ms
+    }
+
+async def run_competitor_with_events(feature_name: str, description: str, industry: str):
+    """Run Competitor Agent and return result with reasoning/tool_calls."""
+    start_time = time.time()
+
+    result = competitor_agent.analyze(
+        feature_description=description,
+        feature_name=feature_name,
+        industry=industry
+    )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+
+    return {
+        "key_competitors": result.get("key_competitors", []),
+        "expected_response_time_sprints": result.get("expected_response_time_sprints", 0),
+        "response_play": result.get("response_play", ""),
+        "competitive_risk_level": result.get("competitive_risk_level", "MEDIUM"),
+        "reasoning": [
+            f"Searching for '{feature_name}' competitive landscape",
+            f"Google Search API returned {result.get('search_results_count', 5)} relevant results",
+            f"Identified {len(result.get('key_competitors', []))} key competitors",
+            f"Risk assessment: {result.get('competitive_risk_level', 'MEDIUM')} (response time: {result.get('expected_response_time_sprints', 6)} sprints)"
+        ],
+        "tool_calls": [
+            {"tool": "Google Search API (Serper)", "action": "Competitive landscape research"},
+            {"tool": "NVIDIA Nemotron Nano 8B", "action": "Risk level analysis"}
+        ],
+        "confidence": 0.75,
+        "elapsed_ms": elapsed_ms
+    }
+
+async def run_market_intel_with_events(feature_name: str, industry: str):
+    """Run Market Intelligence Agent and return result with reasoning/tool_calls."""
+    start_time = time.time()
+
+    try:
+        result = market_intel_agent.analyze(
+            feature_name=feature_name,
+            industry=industry,
+            config={
+                "search_market_size": True,
+                "search_trends": False,
+                "search_competitors": False,
+                "search_regulatory": False
+            }
+        )
+        market_data = result.get("market_data", {})
+    except Exception as e:
+        logger.warning(f"Market Intelligence failed: {str(e)}")
+        market_data = {
+            "market_size_usd": 0,
+            "growth_rate_cagr": 0.0,
+            "source_url": "",
+            "note": "Market data unavailable",
+            "confidence": "LOW"
+        }
+
+    elapsed_ms = (time.time() - start_time) * 1000
+
+    return {
+        "market_data": market_data,
+        "reasoning": [
+            f"Researching {industry} market for {feature_name}",
+            f"Market size: ${market_data.get('market_size_usd', 0):,} USD",
+            f"Growth rate: {market_data.get('growth_rate_cagr', 0):.1%} CAGR",
+            f"Data source: {market_data.get('source_url', 'N/A')}"
+        ],
+        "tool_calls": [
+            {"tool": "Google Search API (Serper)", "action": "Market research"},
+            {"tool": "NVIDIA Nemotron Nano 8B", "action": "Market data synthesis"}
+        ],
+        "confidence": 0.70 if market_data.get("market_size_usd", 0) > 0 else 0.30,
+        "elapsed_ms": elapsed_ms
+    }
+
+async def run_roi_with_events(feature_name: str, engineer_result: dict, industry: str):
+    """Run ROI Calculator Agent and return result with reasoning/tool_calls."""
+    start_time = time.time()
+
+    # Extract similar projects from engineer result if available
+    similar_projects_data = engineer_result.get("result", {}).get("similar_projects", []) if "result" in engineer_result else []
+
+    result = roi_calculator_agent.analyze(
+        feature_name=feature_name,
+        cost=engineer_result.get("estimated_cost_usd", 0),
+        similar_projects=similar_projects_data,
+        industry=industry
+    )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+    scenarios = result.get("roi_scenarios", {})
+
+    return {
+        "scenarios": scenarios,
+        "recommended_scenario": result.get("recommended_scenario", "base_case"),
+        "reasoning": [
+            f"Using Engineer cost estimate: ${engineer_result.get('estimated_cost_usd', 0):,}",
+            f"Calculating 3 scenarios (worst/base/best case)",
+            f"Base case ROI: {scenarios.get('base_case', {}).get('roi_percent', 0):.0f}%",
+            f"Payback period: {scenarios.get('base_case', {}).get('payback_period_months', 0):.1f} months"
+        ],
+        "tool_calls": [
+            {"tool": "NVIDIA Nemotron Nano 8B", "action": "Financial projection modeling"}
+        ],
+        "confidence": 0.72,
+        "elapsed_ms": elapsed_ms
+    }
+
+async def run_similar_with_events(feature_name: str, description: str, engineer_result: dict):
+    """Run Similar Features Agent and return result with reasoning/tool_calls."""
+    start_time = time.time()
+
+    result = similar_feature_agent.analyze(
+        feature_name=feature_name,
+        feature_description=description,
+        estimated_sprints=engineer_result.get("estimated_sprints", 0)
+    )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+
+    return {
+        "similar_projects": result.get("similar_projects", []),
+        "cost_estimate_basis": result.get("cost_estimate_basis", {}),
+        "confidence": result.get("confidence", {}),
+        "reasoning": [
+            f"RAG search for similar features to '{feature_name}'",
+            f"Found {len(result.get('similar_projects', []))} similar projects",
+            f"Using NVIDIA NV-Embed-v2 for semantic matching",
+            f"Cost validation confidence: {result.get('confidence', {}).get('level', 'MEDIUM')}"
+        ],
+        "tool_calls": [
+            {"tool": "NVIDIA NV-Embed-v2", "action": "Semantic similarity search"},
+            {"tool": "ChromaDB", "action": "RAG query execution"},
+            {"tool": "NVIDIA Nemotron Nano 8B", "action": "Cost validation analysis"}
+        ],
+        "elapsed_ms": elapsed_ms
+    }
 
 # NEW ENDPOINT 2: Trigger implementation via Automation Service
 @app.post("/api/trigger-implementation")

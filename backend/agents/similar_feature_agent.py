@@ -16,6 +16,10 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
+import openai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Import existing RAG system
 import sys
@@ -50,6 +54,13 @@ class SimilarFeatureAgent:
 
         # Ensure data directory exists
         os.makedirs(self.data_dir, exist_ok=True)
+
+        # Initialize NVIDIA API client for LLM synthesis
+        self.client = openai.OpenAI(
+            base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+            api_key=os.getenv("NVIDIA_API_KEY")
+        )
+        self.model = os.getenv("NEMOTRON_MODEL", "nvidia/llama-3.1-nemotron-nano-8b-v1")
 
         logger.info(f"Similar Feature Agent initialized (embeddings: {use_vector_embeddings})")
 
@@ -109,6 +120,14 @@ class SimilarFeatureAgent:
         # Calculate confidence score with reasoning
         confidence = self._calculate_confidence(explained_projects, feature_description)
 
+        # Generate AI synthesis of similar features
+        logger.info("Generating AI synthesis of similar features...")
+        ai_synthesis = self._generate_ai_synthesis(
+            feature_name=feature_name,
+            feature_description=feature_description,
+            similar_projects=explained_projects
+        )
+
         # Build final result
         result = {
             "feature_name": feature_name,
@@ -117,7 +136,8 @@ class SimilarFeatureAgent:
             "search_method": "vector_embeddings" if self.use_vector_embeddings else "keyword_matching",
             "similar_projects": explained_projects,
             "cost_estimate_basis": cost_breakdown,
-            "confidence": confidence
+            "confidence": confidence,
+            "ai_synthesis": ai_synthesis
         }
 
         # Save to JSON
@@ -455,6 +475,53 @@ class SimilarFeatureAgent:
 
         except Exception as e:
             logger.error(f"Failed to save results: {str(e)}")
+
+    def _generate_ai_synthesis(
+        self,
+        feature_name: str,
+        feature_description: str,
+        similar_projects: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Use NVIDIA LLM to synthesize insights from similar features.
+
+        Args:
+            feature_name: Name of new feature
+            feature_description: Description of new feature
+            similar_projects: List of similar project dicts
+
+        Returns:
+            AI-generated synthesis
+        """
+        try:
+            projects_summary = "\n".join([
+                f"{i+1}. {p['name']} - ${p['cost']:,}, {p['sprints']} sprints, {p['similarity_score']:.0%} similar"
+                for i, p in enumerate(similar_projects)
+            ])
+
+            prompt = f"""Analyze these {len(similar_projects)} similar PNC projects for "{feature_name}":
+
+{projects_summary}
+
+Provide a 2-3 sentence synthesis explaining:
+1) What patterns do you see across these projects?
+2) How confident should we be in cost/time estimates based on this historical data?"""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a technical analyst providing concise project insights."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=150
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"AI synthesis generation failed: {str(e)}")
+            return f"Found {len(similar_projects)} similar projects with average similarity of {sum(p['similarity_score'] for p in similar_projects) / len(similar_projects):.0%}."
 
 
 # Standalone test functionality

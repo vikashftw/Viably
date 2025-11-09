@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
+import openai
 
 load_dotenv()
 
@@ -39,6 +40,13 @@ class ROICalculatorAgent:
 
         # Ensure data directory exists
         os.makedirs(self.data_dir, exist_ok=True)
+
+        # Initialize NVIDIA API client for LLM reasoning
+        self.client = openai.OpenAI(
+            base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+            api_key=os.getenv("NVIDIA_API_KEY")
+        )
+        self.model = os.getenv("NEMOTRON_MODEL", "nvidia/llama-3.1-nemotron-nano-8b-v1")
 
         logger.info("ROI Calculator Agent initialized")
 
@@ -121,6 +129,18 @@ class ROICalculatorAgent:
             "explicit_assumptions": self._document_assumptions(industry, target_users),
             "data_sources": self._document_data_sources(similar_projects)
         }
+
+        # Generate AI narrative reasoning about the ROI scenarios
+        logger.info("Generating AI reasoning about ROI scenarios...")
+        ai_reasoning = self._generate_ai_reasoning(
+            feature_name=feature_name,
+            cost=cost,
+            worst_case=worst_case,
+            base_case=base_case,
+            best_case=best_case,
+            industry=industry
+        )
+        result["ai_reasoning"] = ai_reasoning
 
         # Save to JSON
         self._save_results(result)
@@ -303,6 +323,67 @@ class ROICalculatorAgent:
 
         except Exception as e:
             logger.error(f"Failed to save results: {str(e)}")
+
+    def _generate_ai_reasoning(
+        self,
+        feature_name: str,
+        cost: int,
+        worst_case: Dict[str, Any],
+        base_case: Dict[str, Any],
+        best_case: Dict[str, Any],
+        industry: str
+    ) -> str:
+        """
+        Use NVIDIA LLM to generate narrative reasoning about ROI scenarios.
+
+        Args:
+            feature_name: Name of feature
+            cost: Investment cost
+            worst_case: Worst case scenario results
+            base_case: Base case scenario results
+            best_case: Best case scenario results
+            industry: Industry context
+
+        Returns:
+            AI-generated narrative reasoning
+        """
+        try:
+            prompt = f"""Analyze this ROI projection for a {industry} feature called "{feature_name}".
+
+Investment: ${cost:,}
+
+Worst Case Scenario:
+- ROI: {worst_case.get('roi_percent', 0):.1f}%
+- Revenue: ${worst_case.get('total_revenue', 0):,}
+- Payback: {worst_case.get('payback_period_months', 0):.1f} months
+
+Base Case Scenario:
+- ROI: {base_case.get('roi_percent', 0):.1f}%
+- Revenue: ${base_case.get('total_revenue', 0):,}
+- Payback: {base_case.get('payback_period_months', 0):.1f} months
+
+Best Case Scenario:
+- ROI: {best_case.get('roi_percent', 0):.1f}%
+- Revenue: ${best_case.get('total_revenue', 0):,}
+- Payback: {best_case.get('payback_period_months', 0):.1f} months
+
+Provide a 2-3 sentence strategic recommendation on whether to proceed with this investment. Focus on risk vs reward."""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a financial analyst providing concise ROI recommendations."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=200
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"AI reasoning generation failed: {str(e)}")
+            return f"ROI analysis complete. Base case projects {base_case.get('roi_percent', 0):.0f}% ROI with {base_case.get('payback_period_months', 0):.1f} month payback period."
 
 
 # Standalone test functionality

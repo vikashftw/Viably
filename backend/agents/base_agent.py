@@ -29,7 +29,7 @@ class BaseAgent(ABC):
             base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
             api_key=os.getenv("NVIDIA_API_KEY")
         )
-        self.model = os.getenv("NEMOTRON_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
+        self.model = os.getenv("NEMOTRON_MODEL", "nvidia/llama-3.1-nemotron-nano-8b-v1")
 
     @abstractmethod
     def analyze(self, feature_description: str, **kwargs) -> Dict[str, Any]:
