@@ -298,6 +298,7 @@ export default function Dashboard() {
                 )}
               </button>
             </div>
+          </form>
 
           <div className="mt-8">
             <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-4">Simulation Scenarios</h3>
@@ -325,7 +326,7 @@ export default function Dashboard() {
                   <span className="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full dark:bg-yellow-900 dark:text-yellow-300">Pending</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">In-app AI helper for customer support.</p>
-                 <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                   <div className="flex items-center space-x-1">
                     <Star className="w-4 h-4 text-gray-400" />
                     <span>N/A</span>
@@ -337,12 +338,12 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-dashed border-gray-400 dark:border-gray-600 text-center flex flex-col justify-center items-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                  <Plus className="w-8 h-8 text-gray-400 mb-2"/>
-                  <h4 className="font-semibold text-gray-600 dark:text-gray-400">New Scenario</h4>
-                  <p className="text-gray-400 text-sm">Create a new simulation</p>
+                <Plus className="w-8 h-8 text-gray-400 mb-2"/>
+                <h4 className="font-semibold text-gray-600 dark:text-gray-400">New Scenario</h4>
+                <p className="text-gray-400 text-sm">Create a new simulation</p>
               </div>
             </div>
-          </form>
+          </div>
 
           <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">
