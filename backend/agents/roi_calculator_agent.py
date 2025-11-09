@@ -87,31 +87,48 @@ class ROICalculatorAgent:
         # Fallback to industry averages if no similar projects
         if not adoption_rates:
             logger.warning("No adoption rates from similar projects, using industry averages")
-            adoption_rates = [0.25, 0.35, 0.45]  # Conservative industry averages
+            # REALISTIC industry averages for banking features (historically 5-20% adoption)
+            adoption_rates = [0.05, 0.12, 0.25]  # Conservative but achievable
 
-        # Calculate scenarios
+        # Scale down adoption rates if they seem too optimistic (from past projects with captive audiences)
+        # Realistic new feature adoption in banking: 5-30% is normal, >50% is exceptional
+        scaled_rates = []
+        for rate in adoption_rates:
+            if rate > 0.50:
+                # If past projects had >50% adoption, they likely had captive audiences
+                # Scale down for new features by 50%
+                scaled_rate = rate * 0.50
+                logger.warning(f"Scaling down high adoption rate {rate:.1%} → {scaled_rate:.1%} (past project likely had captive audience)")
+                scaled_rates.append(scaled_rate)
+            else:
+                scaled_rates.append(rate)
+
+        # Calculate scenarios with CONSERVATIVE multipliers
         worst_case = self._calculate_scenario(
             cost=cost,
-            adoption_rate=min(adoption_rates) * 0.70,  # 70% of lowest
+            adoption_rate=min(scaled_rates) * 0.60,  # 60% of lowest (down from 70%)
             scenario_name="worst_case",
             target_users=target_users,
-            industry=industry
+            industry=industry,
+            feature_name=feature_name
         )
 
         base_case = self._calculate_scenario(
             cost=cost,
-            adoption_rate=sum(adoption_rates) / len(adoption_rates),  # Average
+            adoption_rate=sum(scaled_rates) / len(scaled_rates) * 0.80,  # 80% of average (realistic adjustment)
             scenario_name="base_case",
             target_users=target_users,
-            industry=industry
+            industry=industry,
+            feature_name=feature_name
         )
 
         best_case = self._calculate_scenario(
             cost=cost,
-            adoption_rate=max(adoption_rates) * 1.20,  # 120% of highest (capped at 0.95)
+            adoption_rate=min(0.35, max(scaled_rates) * 1.10),  # 110% of highest, capped at 35% (down from 95%)
             scenario_name="best_case",
             target_users=target_users,
-            industry=industry
+            industry=industry,
+            feature_name=feature_name
         )
 
         # Build result
@@ -155,7 +172,8 @@ class ROICalculatorAgent:
         adoption_rate: float,
         scenario_name: str,
         target_users: Optional[int],
-        industry: str
+        industry: str,
+        feature_name: str = ""
     ) -> Dict[str, Any]:
         """
         Calculate ROI for a single scenario.
@@ -166,12 +184,13 @@ class ROICalculatorAgent:
             scenario_name: Name of scenario
             target_users: Number of target users
             industry: Industry context
+            feature_name: Name of feature (for determining revenue type)
 
         Returns:
             Scenario dictionary with ROI, payback period, revenue
         """
-        # Cap adoption rate at 95%
-        adoption_rate = min(0.95, max(0.01, adoption_rate))
+        # Cap adoption rate at realistic maximum (35% is exceptional for new banking features)
+        adoption_rate = min(0.35, max(0.01, adoption_rate))
 
         # Estimate target users if not provided
         if target_users is None:
@@ -181,11 +200,9 @@ class ROICalculatorAgent:
             else:
                 target_users = 1_000_000  # Generic assumption
 
-        # Revenue model: Estimate INCREMENTAL revenue per user per year
-        # For banking: New features typically increase customer spend by $2-8/user/year
-        # We'll use conservative $3/user/year (incremental, not total)
-        # This accounts for: increased engagement, cross-sell opportunities, reduced churn
-        revenue_per_user_per_year = 3
+        # Revenue model: Feature-type based INCREMENTAL revenue per user per year
+        # Determines revenue based on what type of feature it is
+        revenue_per_user_per_year = self._get_revenue_per_user(feature_name, industry)
 
         # Calculate projected users
         projected_users = int(target_users * adoption_rate)
@@ -198,6 +215,20 @@ class ROICalculatorAgent:
         if cost > 0:
             roi_percent = ((total_revenue - cost) / cost) * 100
             payback_period_months = (cost / (total_revenue / timeframe_months)) if total_revenue > 0 else 999
+
+            # CAP UNREALISTIC ROI VALUES
+            # Any ROI > 1000% (10x return) is unrealistic for banking features
+            if roi_percent > 1000:
+                logger.warning(
+                    f"⚠️  ROI capped from {roi_percent:.0f}% to 1000% for {scenario_name} "
+                    f"(original: ${total_revenue:,} revenue on ${cost:,} cost)"
+                )
+                roi_percent = 1000
+
+            # Payback period < 1 month is also unrealistic
+            if payback_period_months < 1.0 and payback_period_months > 0:
+                logger.warning(f"⚠️  Payback period capped from {payback_period_months:.1f} to 1.0 months")
+                payback_period_months = 1.0
         else:
             roi_percent = 0
             payback_period_months = 999
@@ -213,6 +244,50 @@ class ROICalculatorAgent:
             "assumptions": f"Adoption: {adoption_rate:.1%}, Revenue: ${revenue_per_user_per_year}/user/year",
             "calculation": f"({projected_users:,} users × ${revenue_per_user_per_year}/yr × 1.5 yr) - ${cost:,} = ${int(total_revenue - cost):,}"
         }
+
+    def _get_revenue_per_user(self, feature_name: str, industry: str) -> int:
+        """
+        Get realistic INCREMENTAL revenue per user per year based on feature type.
+
+        Banking features generate revenue through:
+        - Increased engagement (more transactions)
+        - Cross-sell opportunities (new products)
+        - Reduced churn (customer retention)
+
+        Args:
+            feature_name: Name of the feature (used to detect type)
+            industry: Industry context
+
+        Returns:
+            Revenue per user per year in USD
+        """
+        feature_lower = feature_name.lower()
+
+        # Banking-specific revenue benchmarks (INCREMENTAL revenue)
+        if industry.lower() in ['banking', 'fintech']:
+            # Payment & Transaction Features: High engagement = more transaction fees
+            if any(word in feature_lower for word in ['payment', 'pay', 'transfer', 'transaction', 'wallet', 'checkout']):
+                return 10  # $10/user/year from increased transaction volume
+
+            # Branch & Location Features: Hybrid engagement = cross-sell opportunities
+            elif any(word in feature_lower for word in ['branch', 'location', 'atm', 'appointment', 'hybrid']):
+                return 8  # $8/user/year from in-person cross-sell and reduced branch costs
+
+            # Engagement & Notification Features: Moderate value from retention
+            elif any(word in feature_lower for word in ['notification', 'alert', 'reminder', 'insight', 'dashboard']):
+                return 5  # $5/user/year from reduced churn and increased engagement
+
+            # Security & Authentication Features: Lower direct revenue, more defensive
+            elif any(word in feature_lower for word in ['security', 'auth', 'biometric', '2fa', 'fraud']):
+                return 3  # $3/user/year from reduced fraud costs and trust
+
+            # Generic/Unknown Feature: Conservative estimate
+            else:
+                return 5  # $5/user/year default
+
+        # Non-banking: More conservative
+        else:
+            return 4  # $4/user/year for generic industries
 
     def _document_calculation_basis(
         self,

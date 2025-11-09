@@ -1,104 +1,91 @@
-import React, { useState } from 'react';
-import { MoreVertical } from 'lucide-react';
+'use client';
 
-export const Box3 = ({ backlog }: { backlog: any[] }) => {
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [isCreatingPR, setIsCreatingPR] = useState<string | null>(null);
+import { useState, useEffect } from 'react';
+import { GitBranch } from 'lucide-react';
+import { JiraButton } from './components/JiraButton';
+import { BentoGrid } from './components/BentoGrid';
+import { AnalysisProvider } from './components/AnalysisProvider';
 
-  // Filter out issues with status 'Done'
-  const filteredBacklog = backlog
-    ? backlog.filter(issue => issue.status !== 'Done')
-    : [];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  const handleMenuClick = (issueId: string) => {
-    setActiveMenu(prev => (prev === issueId ? null : issueId));
-  };
+export default function Dashboard() {
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [backlog, setBacklog] = useState<any[]>([]);
 
-  const handleCreatePR = async (issue: any) => {
-    setIsCreatingPR(issue.id);
-    try {
-      const viablyAnalysis = {
-        feature_name: issue.summary,
-        description: `Implementation for Jira issue: ${issue.id} - ${issue.summary}`,
-        engineer_analysis: {},
-        competitor_analysis: {},
-        similar_features: {},
-        roi_projections: {},
-        overall_recommendation: {},
-        upskilling_insights: {}
-      };
-
-      const response = await fetch('http://localhost:3002/api/implementation-flow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          viably_analysis: viablyAnalysis
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || 'Failed to create PR');
+  useEffect(() => {
+    const checkJiraStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/jira/status`);
+        const data = await response.json();
+        setIsJiraConnected(data.connected);
+      } catch (error) {
+        console.error('Failed to fetch Jira status:', error);
       }
+    };
+    checkJiraStatus();
+  }, []);
 
-      const result = await response.json();
-      if (result.pr_details?.url) {
-        window.open(result.pr_details.url, '_blank');
+  useEffect(() => {
+    if (isJiraConnected) {
+      const fetchBacklog = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/jira/backlog`);
+          const data = await response.json();
+          console.log('Jira Backlog:', data);
+          setBacklog(data.issues || []);
+        } catch (error) {
+          console.error('Failed to fetch Jira backlog:', error);
+        }
+      };
+      fetchBacklog();
+    }
+  }, [isJiraConnected]);
+
+  const handleConnect = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/jira/connect`);
+      const data = await response.json();
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
       }
     } catch (error) {
-      console.error('Failed to create PR:', error);
-      alert(`Error creating PR: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsCreatingPR(null);
-      setActiveMenu(null); // Close menu after action
+      console.error('Failed to connect to Jira:', error);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await fetch(`${API_URL}/api/jira/disconnect`, { method: 'POST' });
+      setIsJiraConnected(false);
+      setBacklog([]);
+    } catch (error) {
+      console.error('Failed to disconnect from Jira:', error);
     }
   };
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 h-full shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 hover:border-slate-600 flex flex-col">
-      <h2 className="text-lg font-semibold text-white mb-4 flex-shrink-0">Jira Backlog</h2>
-      <div className="overflow-y-auto h-[30rem]">
-        <div className="space-y-2">
-          {filteredBacklog && filteredBacklog.length > 0 ? (
-            filteredBacklog.map((issue: any) => (
-              <div key={issue.id} className="bg-slate-700/50 px-3 py-2 rounded-md w-full text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors h-[4.6rem] flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-white truncate">{issue.summary || 'No summary'}</p>
-                  <p className="text-xs text-slate-400">{issue.id}</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div
-                    className={`flex items-center space-x-2 transition-all duration-300 ease-in-out overflow-hidden ${
-                      activeMenu === issue.id ? 'max-w-xs' : 'max-w-0'
-                    }`}
-                  >
-                    <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700">
-                      Market Research
-                    </button>
-                    <button
-                      onClick={() => handleCreatePR(issue)}
-                      disabled={isCreatingPR === issue.id}
-                      className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed"
-                    >
-                      {isCreatingPR === issue.id ? 'Creating...' : 'Create PR'}
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => handleMenuClick(issue.id)}
-                    className="p-2 rounded-full hover:bg-slate-600 text-slate-400 hover:text-white"
-                  >
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-slate-400">No backlog items found.</p>
-            </div>
-          )}
+    <div className="flex flex-col h-screen text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <GitBranch className="w-8 h-8 text-blue-600 dark:text-blue-500" />
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viably</h1>
+          </div>
+          <div className="flex items-center space-x-6">
+            <JiraButton
+              isJiraConnected={isJiraConnected}
+              handleConnect={handleConnect}
+              handleDisconnect={handleDisconnect}
+            />
+          </div>
         </div>
-      </div>
+      </header>
+
+      <main className="flex-grow p-6">
+        <AnalysisProvider>
+          <BentoGrid backlog={backlog} />
+        </AnalysisProvider>
+      </main>
     </div>
   );
-};
+}

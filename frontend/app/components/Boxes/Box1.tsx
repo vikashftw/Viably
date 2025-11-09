@@ -31,13 +31,23 @@ export const Box1 = () => {
     return <LoadingStateCard title="Competitor Intelligence" />;
   }
 
-  if (error || !competitor) {
+  if (error) {
     return (
       <ErrorStateCard
         title="Competitor Intelligence"
-        message={error ?? 'Competitor data unavailable'}
+        message={error}
         onRetry={refetch}
       />
+    );
+  }
+
+  if (!competitor) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 h-full flex flex-col items-center justify-center text-center">
+        <Shield className="w-12 h-12 text-slate-600 mb-3" />
+        <h3 className="text-lg font-semibold text-slate-400 mb-1">Competitor Intelligence</h3>
+        <p className="text-sm text-slate-500">Select a JIRA item and run Market Research to analyze competitors</p>
+      </div>
     );
   }
 

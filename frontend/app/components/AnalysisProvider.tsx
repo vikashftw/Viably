@@ -110,6 +110,7 @@ interface AnalysisContextValue {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  triggerAnalysis: (featureName: string, description: string) => Promise<void>;
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | undefined>(
@@ -118,17 +119,23 @@ const AnalysisContext = createContext<AnalysisContextValue | undefined>(
 
 export const AnalysisProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<CompleteAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalysis = useCallback(async () => {
+  const triggerAnalysis = useCallback(async (featureName: string, description: string) => {
     setLoading(true);
     setError(null);
     try {
       const response = await fetch(`${BACKEND_URL}/api/analyze-complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(DEFAULT_ANALYSIS_REQUEST),
+        body: JSON.stringify({
+          feature_name: featureName,
+          description: description,
+          target_user: 'PNC customers',
+          business_goal: 'increase engagement and revenue',
+          industry: 'banking',
+        }),
       });
 
       if (!response.ok) {
@@ -147,9 +154,12 @@ export const AnalysisProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchAnalysis();
-  }, [fetchAnalysis]);
+  const fetchAnalysis = useCallback(async () => {
+    await triggerAnalysis(
+      DEFAULT_ANALYSIS_REQUEST.feature_name,
+      DEFAULT_ANALYSIS_REQUEST.description
+    );
+  }, [triggerAnalysis]);
 
   const value = useMemo(
     () => ({
@@ -157,8 +167,9 @@ export const AnalysisProvider = ({ children }: { children: ReactNode }) => {
       loading,
       error,
       refetch: fetchAnalysis,
+      triggerAnalysis,
     }),
-    [data, loading, error, fetchAnalysis],
+    [data, loading, error, fetchAnalysis, triggerAnalysis],
   );
 
   return (

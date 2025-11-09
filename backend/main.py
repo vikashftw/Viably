@@ -156,28 +156,35 @@ async def analyze_complete(request: CompleteAnalysisRequest):
     logger.info(f"Starting complete analysis for '{request.feature_name}' (ID: {analysis_id})")
 
     try:
-        # Step 1: Run Engineer Agent
-        logger.info("Step 1/5: Running Engineer Agent...")
-        engineer_result = engineer_agent.analyze(
-            feature_description=request.description,
-            feature_name=request.feature_name
+        analysis_start_time = time.time()
+
+        # ==============================================================================
+        # WAVE 1: Run Engineer, Competitor, Market Intel in PARALLEL (no dependencies)
+        # ==============================================================================
+        logger.info("Wave 1/3: Running Engineer, Competitor, Market Intel in parallel...")
+        wave1_start = time.time()
+
+        wave1_results = await asyncio.gather(
+            run_engineer_agent_async(request.feature_name, request.description),
+            run_competitor_agent_async(request.feature_name, request.description, request.industry),
+            run_market_intel_agent_async(request.feature_name, request.industry)
         )
+
+        engineer_result, competitor_result, market_result = wave1_results
+        wave1_duration = (time.time() - wave1_start) * 1000
+        logger.info(f"✓ Wave 1 completed in {wave1_duration:.0f}ms")
+
+        # Extract engineer data with correct field names
+        duration_weeks = engineer_result.get("duration_weeks", 0)
+        estimated_sprints = duration_weeks // 2 if duration_weeks else 0
 
         engineer_analysis = {
-            "estimated_sprints": engineer_result.get("estimated_sprints", 0),
-            "estimated_engineers": engineer_result.get("estimated_engineers", 0),
-            "estimated_cost_usd": engineer_result.get("estimated_cost_usd", 0),
-            "key_risks": engineer_result.get("key_risks", []),
+            "estimated_sprints": estimated_sprints,
+            "estimated_engineers": engineer_result.get("team_size", 0),
+            "estimated_cost_usd": engineer_result.get("cost", 0),
+            "key_risks": engineer_result.get("risks", []),
             "confidence": engineer_result.get("confidence", 0.7)
         }
-
-        # Step 2: Run Competitor Agent
-        logger.info("Step 2/5: Running Competitor Agent...")
-        competitor_result = competitor_agent.analyze(
-            feature_description=request.description,
-            feature_name=request.feature_name,
-            industry=request.industry
-        )
 
         competitor_analysis = {
             "key_competitors": competitor_result.get("key_competitors", []),
@@ -186,54 +193,60 @@ async def analyze_complete(request: CompleteAnalysisRequest):
             "competitive_risk_level": competitor_result.get("competitive_risk_level", "MEDIUM")
         }
 
-        # Step 3: Run Market Intelligence Agent (minimal config for speed)
-        logger.info("Step 3/5: Running Market Intelligence Agent...")
-        try:
-            market_result = market_intel_agent.analyze(
-                feature_name=request.feature_name,
-                industry=request.industry,
-                config={
-                    "search_market_size": True,
-                    "search_trends": False,  # Disabled to save time/tokens
-                    "search_competitors": False,
-                    "search_regulatory": False
-                }
+        # ==============================================================================
+        # WAVE 2: Run Similar Feature and ROI in PARALLEL (both depend on engineer data)
+        # ==============================================================================
+        logger.info("Wave 2/3: Running Similar Feature and ROI Calculator in parallel...")
+        wave2_start = time.time()
+
+        wave2_results = await asyncio.gather(
+            run_similar_feature_agent_async(
+                request.feature_name,
+                request.description,
+                engineer_analysis["estimated_sprints"]
+            ),
+            # Note: ROI will run without similar_projects initially, will use industry benchmarks
+            run_roi_calculator_agent_async(
+                request.feature_name,
+                engineer_analysis["estimated_cost_usd"],
+                [],  # Empty for now, ROI agent should use industry benchmarks
+                request.industry
             )
-        except Exception as e:
-            logger.warning(f"Market Intelligence failed: {str(e)}, using fallback")
-            market_result = {
-                "market_data": {
-                    "market_size_usd": 0,
-                    "growth_rate_cagr": 0.0,
-                    "source_url": "",
-                    "note": "Market data unavailable",
-                    "confidence": "LOW"
-                }
-            }
-
-        # Step 4: Run Similar Feature Agent
-        logger.info("Step 4/5: Running Similar Feature Agent...")
-        similar_result = similar_feature_agent.analyze(
-            feature_name=request.feature_name,
-            feature_description=request.description,
-            estimated_sprints=engineer_analysis["estimated_sprints"]
         )
 
-        # Step 5: Run ROI Calculator Agent
-        logger.info("Step 5/5: Running ROI Calculator Agent...")
-        roi_result = roi_calculator_agent.analyze(
-            feature_name=request.feature_name,
-            cost=engineer_analysis["estimated_cost_usd"],
-            similar_projects=similar_result.get("similar_projects", []),
-            industry=request.industry
+        similar_result, roi_result_temp = wave2_results
+        wave2_duration = (time.time() - wave2_start) * 1000
+        logger.info(f"✓ Wave 2 completed in {wave2_duration:.0f}ms")
+
+        # Re-run ROI with similar_projects data for better accuracy
+        logger.info("Refining ROI calculation with similar features data...")
+        roi_result = await run_roi_calculator_agent_async(
+            request.feature_name,
+            engineer_analysis["estimated_cost_usd"],
+            similar_result.get("similar_projects", []),
+            request.industry
         )
 
-        # Generate overall recommendation (using OrchestratorV2 logic)
+        # ==============================================================================
+        # WAVE 3: Generate recommendation (depends on all previous results)
+        # ==============================================================================
+        logger.info("Wave 3/3: Generating overall recommendation...")
+        wave3_start = time.time()
+
         recommendation = orchestrator._generate_recommendation(
             feature_name=request.feature_name,
             engineer_analysis=engineer_analysis,
             competitor_analysis=competitor_analysis,
             business_goal=request.business_goal
+        )
+
+        wave3_duration = (time.time() - wave3_start) * 1000
+        logger.info(f"✓ Wave 3 completed in {wave3_duration:.0f}ms")
+
+        total_duration = (time.time() - analysis_start_time) * 1000
+        logger.info(
+            f"⚡ Total analysis completed in {total_duration:.0f}ms "
+            f"(Wave 1: {wave1_duration:.0f}ms, Wave 2: {wave2_duration:.0f}ms, Wave 3: {wave3_duration:.0f}ms)"
         )
 
         # Get upskilling insights
@@ -759,6 +772,87 @@ def load_analysis(analysis_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Failed to load analysis: {str(e)}")
         return None
+
+# ==============================================================================
+# Async Wrapper Functions for Parallel Execution
+# ==============================================================================
+
+async def run_engineer_agent_async(feature_name: str, description: str):
+    """Run Engineer Agent in executor for parallel execution"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: engineer_agent.analyze(
+            feature_description=description,
+            feature_name=feature_name
+        )
+    )
+
+async def run_competitor_agent_async(feature_name: str, description: str, industry: str):
+    """Run Competitor Agent in executor for parallel execution"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: competitor_agent.analyze(
+            feature_description=description,
+            feature_name=feature_name,
+            industry=industry
+        )
+    )
+
+async def run_market_intel_agent_async(feature_name: str, industry: str):
+    """Run Market Intelligence Agent in executor for parallel execution"""
+    loop = asyncio.get_event_loop()
+    try:
+        return await loop.run_in_executor(
+            None,
+            lambda: market_intel_agent.analyze(
+                feature_name=feature_name,
+                industry=industry,
+                config={
+                    "search_market_size": True,
+                    "search_trends": False,
+                    "search_competitors": False,
+                    "search_regulatory": False
+                }
+            )
+        )
+    except Exception as e:
+        logger.warning(f"Market Intelligence failed: {str(e)}, using fallback")
+        return {
+            "market_data": {
+                "market_size_usd": 0,
+                "growth_rate_cagr": None,
+                "source_url": "",
+                "note": "Market data unavailable",
+                "confidence": "LOW"
+            }
+        }
+
+async def run_similar_feature_agent_async(feature_name: str, description: str, estimated_sprints: int):
+    """Run Similar Feature Agent in executor for parallel execution"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: similar_feature_agent.analyze(
+            feature_name=feature_name,
+            feature_description=description,
+            estimated_sprints=estimated_sprints
+        )
+    )
+
+async def run_roi_calculator_agent_async(feature_name: str, cost: float, similar_projects: list, industry: str):
+    """Run ROI Calculator Agent in executor for parallel execution"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: roi_calculator_agent.analyze(
+            feature_name=feature_name,
+            cost=cost,
+            similar_projects=similar_projects,
+            industry=industry
+        )
+    )
 
 if __name__ == "__main__":
     import uvicorn

@@ -14,6 +14,7 @@ JIRA_SERVER = os.getenv("JIRA_SERVER")
 JIRA_CLIENT_ID = os.getenv("JIRA_CLIENT_ID")
 JIRA_CLIENT_SECRET = os.getenv("JIRA_CLIENT_SECRET")
 JIRA_REDIRECT_URI = os.getenv("JIRA_REDIRECT_URI", "http://localhost:8000/api/jira/callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # In-memory storage for the token and Jira instance (for prototype purposes)
 token_storage = {}
@@ -76,7 +77,7 @@ async def jira_callback(request: Request):
         cloud_id_storage = resources[0]['id']
         jira_connected = True
 
-        return RedirectResponse(url="http://localhost:3000")
+        return RedirectResponse(url=FRONTEND_URL)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch token or cloudid: {str(e)}")

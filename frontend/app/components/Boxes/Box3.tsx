@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
+import { useAnalysisData } from '../AnalysisProvider';
 
 export const Box3 = ({ backlog }: { backlog: any[] }) => {
+  const { triggerAnalysis, loading: analysisLoading, data: analysisData } = useAnalysisData();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [isCreatingPR, setIsCreatingPR] = useState<string | null>(null);
+  const [analyzingIssue, setAnalyzingIssue] = useState<string | null>(null);
 
   // Filter out issues with status 'Done'
   const filteredBacklog = backlog
@@ -14,18 +17,38 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
     setActiveMenu(prev => (prev === issueId ? null : issueId));
   };
 
+  const handleMarketResearch = async (issue: any) => {
+    setAnalyzingIssue(issue.id);
+    try {
+      await triggerAnalysis(
+        issue.summary || 'Feature Analysis',
+        `Implementation for Jira issue: ${issue.id} - ${issue.summary || 'No description'}`
+      );
+    } catch (error) {
+      console.error('Failed to run analysis:', error);
+      alert(`Error running analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAnalyzingIssue(null);
+    }
+  };
+
   const handleCreatePR = async (issue: any) => {
+    if (!analysisData) {
+      alert('Please run Market Research first to analyze this feature');
+      return;
+    }
+
     setIsCreatingPR(issue.id);
     try {
       const viablyAnalysis = {
         feature_name: issue.summary,
         description: `Implementation for Jira issue: ${issue.id} - ${issue.summary}`,
-        engineer_analysis: {},
-        competitor_analysis: {},
-        similar_features: {},
-        roi_projections: {},
-        overall_recommendation: {},
-        upskilling_insights: {}
+        engineer_analysis: analysisData.engineer_analysis || {},
+        competitor_analysis: analysisData.competitor_analysis || {},
+        similar_features: analysisData.similar_features || {},
+        roi_projections: analysisData.roi_projections || {},
+        overall_recommendation: analysisData.overall_recommendation || {},
+        upskilling_insights: analysisData.upskilling_insights || {}
       };
 
       const response = await fetch('http://localhost:3002/api/implementation-flow', {
@@ -72,12 +95,16 @@ export const Box3 = ({ backlog }: { backlog: any[] }) => {
                       activeMenu === issue.id ? 'max-w-xs' : 'max-w-0'
                     }`}
                   >
-                    <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700">
-                      Market Research
+                    <button
+                      onClick={() => handleMarketResearch(issue)}
+                      disabled={analyzingIssue === issue.id || analysisLoading}
+                      className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed"
+                    >
+                      {analyzingIssue === issue.id || analysisLoading ? 'Analyzing...' : 'Market Research'}
                     </button>
                     <button
                       onClick={() => handleCreatePR(issue)}
-                      disabled={isCreatingPR === issue.id}
+                      disabled={isCreatingPR === issue.id || !analysisData || analysisLoading}
                       className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed"
                     >
                       {isCreatingPR === issue.id ? 'Creating...' : 'Create PR'}

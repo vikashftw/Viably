@@ -22,13 +22,23 @@ export const Box2 = () => {
     return <LoadingStateCard title="Engineering estimate" />;
   }
 
-  if (error || !engineer) {
+  if (error) {
     return (
       <ErrorStateCard
         title="Engineering estimate"
-        message={error ?? 'Engineer analysis unavailable'}
+        message={error}
         onRetry={refetch}
       />
+    );
+  }
+
+  if (!engineer) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 h-full flex flex-col items-center justify-center text-center">
+        <Hammer className="w-12 h-12 text-slate-600 mb-3" />
+        <h3 className="text-lg font-semibold text-slate-400 mb-1">Build Plan</h3>
+        <p className="text-sm text-slate-500">Run Market Research to get cost and timeline estimates</p>
+      </div>
     );
   }
 

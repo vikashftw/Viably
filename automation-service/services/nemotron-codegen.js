@@ -5,7 +5,7 @@
  */
 
 const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
-const NEMOTRON_MODEL = process.env.NEMOTRON_MODEL || 'nvidia/llama-3.1-nemotron-nano-vl-8b-v1';
+const NEMOTRON_MODEL = process.env.NEMOTRON_MODEL || 'nvidia/llama-3.1-nemotron-nano-8b-v1';
 const TEMPERATURE = 0.2; // Lower for faster, more focused responses
 const MAX_TOKENS = 2048; // Reduced for faster response while maintaining quality
 

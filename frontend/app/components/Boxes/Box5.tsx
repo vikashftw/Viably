@@ -39,13 +39,23 @@ export const Box5 = () => {
     return <LoadingStateCard title="Recommendation" />;
   }
 
-  if (error || !recommendation) {
+  if (error) {
     return (
       <ErrorStateCard
         title="Recommendation"
-        message={error ?? 'Recommendation unavailable'}
+        message={error}
         onRetry={refetch}
       />
+    );
+  }
+
+  if (!recommendation) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 h-full flex flex-col items-center justify-center text-center">
+        <Award className="w-12 h-12 text-slate-600 mb-3" />
+        <h3 className="text-lg font-semibold text-slate-400 mb-1">Recommendation</h3>
+        <p className="text-sm text-slate-500">Analysis will provide proceed/caution/avoid decision</p>
+      </div>
     );
   }
 
