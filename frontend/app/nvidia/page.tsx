@@ -171,92 +171,141 @@ export default function NVIDIATechnicalView() {
     eventSourceRef.current = eventSource;
     pushActivity('link ▶ acquiring live agent telemetry');
 
+    eventSource.onopen = () => {
+      console.log('SSE Connection established');
+      pushActivity('telemetry stream locked · agents ready');
+    };
+
     eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('SSE Event:', data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('SSE Event:', data);
 
-      switch (data.type) {
-        case 'start':
-          console.log('Analysis started');
-          pushActivity('wave 01 primed · scouts awaiting go signal');
-          break;
+        switch (data.type) {
+          case 'start':
+            console.log('Analysis started');
+            pushActivity('orchestration initiated · launching agents');
+            break;
 
-        case 'agent_start':
-          pushActivity(`agent ${AGENT_LABELS[data.agent] || data.agent} spinning up`);
-          setAgentStates(prev => ({
-            ...prev,
-            [data.agent]: {
-              ...prev[data.agent],
-              status: 'running',
-              progress: 0,
-              group_id: data.wave ? `wave-0${data.wave}` : undefined
-            }
-          }));
-          break;
+          case 'agent_start':
+            const startName = AGENT_LABELS[data.agent] || data.agent;
+            pushActivity(`${startName} · spinning up`);
+            setAgentStates(prev => ({
+              ...prev,
+              [data.agent]: {
+                status: 'running',
+                progress: 5,
+                reasoning: ['Initializing agent systems...'],
+                confidence: 0,
+                tool_calls: [],
+                elapsed_ms: 0,
+                group_id: data.wave ? `wave-0${data.wave}` : undefined
+              }
+            }));
+            break;
 
-        case 'agent_progress':
-          setAgentStates(prev => ({
-            ...prev,
-            [data.agent]: {
-              ...(prev[data.agent] || { status: 'running', progress: 0 }),
-              progress: data.progress
-            }
-          }));
-          break;
+          case 'agent_progress':
+            setAgentStates(prev => ({
+              ...prev,
+              [data.agent]: {
+                ...(prev[data.agent] || { status: 'running', progress: 0 }),
+                progress: data.progress
+              }
+            }));
+            break;
 
-        case 'agent_complete':
-          pushActivity(`agent ${AGENT_LABELS[data.agent] || data.agent} sealed output`);
-          setAgentStates(prev => ({
-            ...prev,
-            [data.agent]: {
-              status: 'completed',
-              progress: 100,
-              reasoning: data.result?.reasoning || [],
-              confidence: data.result?.confidence || 0.7,
-              tool_calls: data.result?.tool_calls || [],
-              elapsed_ms: data.result?.elapsed_ms || 0,
-              result: data.result,
-              group_id: prev[data.agent]?.group_id
-            }
-          }));
-          break;
+          case 'agent_complete':
+            const agentName = AGENT_LABELS[data.agent] || data.agent;
+            const elapsedSec = ((data.result?.elapsed_ms || 0) / 1000).toFixed(1);
+            pushActivity(`${agentName} · sealed in ${elapsedSec}s`);
 
-        case 'wave_complete':
-          pushActivity(`wave ${data.wave} closed · ${(data.duration_ms / 1000).toFixed(1)}s`);
-          setWaveTimings(prev => ({
-            ...prev,
-            [`wave${data.wave}_ms`]: data.duration_ms
-          }));
-          break;
+            // Animate reasoning steps for real-time feel
+            const reasoning = data.result?.reasoning || [];
+            let currentStep = 0;
 
-        case 'complete':
-          pushActivity('mission complete · orchestration closed');
-          setWaveTimings(prev => ({
-            ...prev,
-            ...data.wave_timings,
-            total_ms: data.total_duration_ms
-          }));
-          setIsAnalyzing(false);
-          eventSource.close();
-          eventSourceRef.current = null;
-          break;
+            const animateReasoning = () => {
+              if (currentStep < reasoning.length) {
+                setAgentStates(prev => ({
+                  ...prev,
+                  [data.agent]: {
+                    status: 'running',
+                    progress: Math.min(99, 20 + ((currentStep + 1) / reasoning.length) * 79),
+                    reasoning: reasoning.slice(0, currentStep + 1),
+                    confidence: data.result?.confidence || 0.7,
+                    tool_calls: data.result?.tool_calls || [],
+                    elapsed_ms: data.result?.elapsed_ms || 0,
+                    result: data.result,
+                    group_id: prev[data.agent]?.group_id
+                  }
+                }));
+                currentStep++;
+                setTimeout(animateReasoning, 200); // 200ms per step
+              } else {
+                // Final completed state
+                setAgentStates(prev => ({
+                  ...prev,
+                  [data.agent]: {
+                    status: 'completed',
+                    progress: 100,
+                    reasoning: data.result?.reasoning || [],
+                    confidence: data.result?.confidence || 0.7,
+                    tool_calls: data.result?.tool_calls || [],
+                    elapsed_ms: data.result?.elapsed_ms || 0,
+                    result: data.result,
+                    group_id: prev[data.agent]?.group_id
+                  }
+                }));
+              }
+            };
 
-        case 'error':
-          console.error('Analysis error:', data.message);
-          pushActivity('telemetry feed error · link dropped');
-          setIsAnalyzing(false);
-          eventSource.close();
-          eventSourceRef.current = null;
-          break;
+            animateReasoning();
+            break;
+
+          case 'wave_complete':
+            const waveNames = { 1: 'Discovery', 2: 'Analysis', 3: 'Orchestration' };
+            const waveName = waveNames[data.wave as keyof typeof waveNames] || `Wave ${data.wave}`;
+            pushActivity(`${waveName} complete · ${(data.duration_ms / 1000).toFixed(1)}s elapsed`);
+            setWaveTimings(prev => ({
+              ...prev,
+              [`wave${data.wave}_ms`]: data.duration_ms
+            }));
+            break;
+
+          case 'complete':
+            pushActivity(`full analysis sealed · ${(data.total_duration_ms / 1000).toFixed(1)}s total`);
+            setWaveTimings(prev => ({
+              ...prev,
+              ...data.wave_timings,
+              total_ms: data.total_duration_ms
+            }));
+            setIsAnalyzing(false);
+            eventSource.close();
+            eventSourceRef.current = null;
+            break;
+
+          case 'error':
+            console.error('Analysis error:', data.message);
+            pushActivity(`error · ${data.message}`);
+            setIsAnalyzing(false);
+            eventSource.close();
+            eventSourceRef.current = null;
+            break;
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE event:', err);
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error('EventSource error:', error);
-      pushActivity('network fault · attempting graceful shutdown');
-      setIsAnalyzing(false);
-      eventSource.close();
-      eventSourceRef.current = null;
+    eventSource.onerror = () => {
+      // Check connection state
+      if (eventSource.readyState === EventSource.CLOSED) {
+        pushActivity('connection lost · backend offline on port 8000');
+        setIsAnalyzing(false);
+        eventSource.close();
+        eventSourceRef.current = null;
+      } else if (eventSource.readyState === EventSource.CONNECTING) {
+        pushActivity('reconnecting to telemetry stream...');
+      }
     };
   };
 
@@ -270,7 +319,7 @@ export default function NVIDIATechnicalView() {
     if (activityLog.length === 0) {
       return (
         <div className="font-mono text-sm text-slate-400">
-          awaiting telemetry feed · launch analysis to begin
+          telemetry stream idle · press launch to begin
         </div>
       );
     }
