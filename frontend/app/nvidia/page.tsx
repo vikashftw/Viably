@@ -26,9 +26,9 @@ const AGENT_GROUPS: AgentGroup[] = [
   {
     id: 'wave-01',
     wave: 1,
-    label: 'Recon Thread',
-    codename: 'WAVE 01',
-    description: 'Independent scouts sweep cost, competitor, and market intelligence in parallel.',
+    label: 'Intelligence Gathering',
+    codename: 'DISCOVERY WAVE',
+    description: 'Parallel reconnaissance across cost estimation, competitive landscape, and market dynamics.',
     accent: 'from-cyan-500/30 via-transparent to-transparent',
     agents: [
       {
@@ -60,9 +60,9 @@ const AGENT_GROUPS: AgentGroup[] = [
   {
     id: 'wave-02',
     wave: 2,
-    label: 'Fusion Thread',
-    codename: 'WAVE 02',
-    description: 'Dependent analysts remix engineer output into ROI narratives.',
+    label: 'Financial Synthesis',
+    codename: 'ANALYSIS WAVE',
+    description: 'Data fusion layer combining engineering estimates with ROI modeling and historical validation.',
     accent: 'from-violet-500/30 via-transparent to-transparent',
     agents: [
       {
@@ -86,9 +86,9 @@ const AGENT_GROUPS: AgentGroup[] = [
   {
     id: 'wave-03',
     wave: 3,
-    label: 'Launch Thread',
-    codename: 'WAVE 03',
-    description: 'Final planner consolidates every upstream artifact into execution tracks.',
+    label: 'Execution Planning',
+    codename: 'ORCHESTRATION WAVE',
+    description: 'Strategic consolidation of all intelligence streams into actionable implementation roadmap.',
     accent: 'from-amber-400/30 via-transparent to-transparent',
     agents: [
       {
@@ -270,7 +270,7 @@ export default function NVIDIATechnicalView() {
     if (activityLog.length === 0) {
       return (
         <div className="font-mono text-sm text-slate-400">
-          awaiting live data · press initiate to light up the swarm
+          awaiting telemetry feed · launch analysis to begin
         </div>
       );
     }
@@ -288,13 +288,6 @@ export default function NVIDIATechnicalView() {
       ));
   };
 
-  const liveStats = [
-    { label: 'Parallel Waves', value: AGENT_GROUPS.length.toString(), hint: 'Recon · Fusion · Launch' },
-    { label: 'Wave Speed', value: waveTimings.total_ms ? `${(waveTimings.total_ms / 1000).toFixed(1)}s` : '---', hint: 'Aggregate elapsed' },
-    { label: 'Live Status', value: isAnalyzing ? 'Streaming' : 'Standby', hint: 'SSE telemetry' },
-    { label: 'Completed', value: completedAgents.toString(), hint: 'Agents sealed' }
-  ];
-
   return (
     <div className="h-screen w-full overflow-hidden bg-[#03050a] text-white">
       <div className="grid h-full gap-6 p-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:p-6">
@@ -302,10 +295,10 @@ export default function NVIDIATechnicalView() {
           <div>
             <p className="text-[0.65rem] uppercase tracking-[0.5em] text-cyan-200/70">Viably Ops · NVIDIA Nemotron</p>
             <h1 className="mt-3 text-3xl font-semibold leading-tight text-white">
-              Agent Swarm Command Console
+              Multi-Agent War Room
             </h1>
             <p className="mt-2 text-sm text-slate-300">
-              Monitor {totalAgents} specialized agents executing in {AGENT_GROUPS.length} synchronized waves with second-by-second telemetry.
+              Real-time orchestration of {totalAgents} specialized AI agents across {AGENT_GROUPS.length} parallel execution waves.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -313,61 +306,13 @@ export default function NVIDIATechnicalView() {
                 disabled={isAnalyzing}
                 className="inline-flex items-center gap-3 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-6 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isAnalyzing ? 'Streaming Live' : 'Initiate Live Stream'}
+                {isAnalyzing ? 'Live Analysis Running' : 'Launch Analysis'}
                 <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
               </button>
               <div className="rounded-full border border-white/10 px-4 py-2 text-[0.6rem] uppercase tracking-[0.4em] text-slate-300">
-                {isAnalyzing ? 'Link Locked' : 'Idle'}
+                {isAnalyzing ? 'Active' : 'Standby'}
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[0.55rem] uppercase tracking-[0.4em] text-slate-400">Live Progress</p>
-                <p className="mt-1 text-3xl font-semibold text-white">{averageProgress}%</p>
-                <p className="text-xs text-slate-400">
-                  {completedAgents}/{totalAgents} agents sealed
-                </p>
-              </div>
-              <div className="relative h-20 w-20">
-                <div className="absolute inset-0 rounded-full border border-white/10" />
-                <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="54" stroke="rgba(255,255,255,0.15)" strokeWidth="8" fill="none" />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="54"
-                    stroke="url(#progressGradient)"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(PROGRESS_RING_CIRCUMFERENCE * averageProgress) / 100} ${PROGRESS_RING_CIRCUMFERENCE}`}
-                    fill="none"
-                  />
-                  <defs>
-                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#06b6d4" />
-                      <stop offset="100%" stopColor="#fbbf24" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4 text-xs text-slate-400">
-              Agents online: {Object.keys(agentStates).length}/{totalAgents} · Last packet:{' '}
-              {lastEventTs ? new Date(lastEventTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'pending'}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm text-slate-300">
-            {liveStats.map(stat => (
-              <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-500">{stat.label}</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
-                <p className="text-xs text-slate-500">{stat.hint}</p>
-              </div>
-            ))}
           </div>
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-black/40 p-4">
@@ -387,25 +332,25 @@ export default function NVIDIATechnicalView() {
               <p className="text-xs text-slate-400">Grouped by orchestration wave</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Wave timings</p>
+              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Discovery Wave</p>
               <p className="mt-2 text-3xl font-semibold text-white">
                 {waveTimings.wave1_ms ? `${(waveTimings.wave1_ms / 1000).toFixed(1)}s` : '---'}
               </p>
-              <p className="text-xs text-slate-400">Wave 01 Recon</p>
+              <p className="text-xs text-slate-400">Intelligence Gathering</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Wave timings</p>
+              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Analysis Wave</p>
               <p className="mt-2 text-3xl font-semibold text-white">
                 {waveTimings.wave2_ms ? `${(waveTimings.wave2_ms / 1000).toFixed(1)}s` : '---'}
               </p>
-              <p className="text-xs text-slate-400">Wave 02 Fusion</p>
+              <p className="text-xs text-slate-400">Financial Synthesis</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Wave timings</p>
+              <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-400">Orchestration Wave</p>
               <p className="mt-2 text-3xl font-semibold text-white">
                 {waveTimings.wave3_ms ? `${(waveTimings.wave3_ms / 1000).toFixed(1)}s` : '---'}
               </p>
-              <p className="text-xs text-slate-400">Wave 03 Launch</p>
+              <p className="text-xs text-slate-400">Execution Planning</p>
             </div>
           </div>
 
