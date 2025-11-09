@@ -65,5 +65,4 @@ npm run dev
 - **Total: ~40 seconds from idea to working PR**
 
 ## Documentation
-- See `CLAUDE.md` for complete project details
 - Each service has its own README with setup instructions
