@@ -67,6 +67,3 @@ npm run dev
 ## Documentation
 - See `CLAUDE.md` for complete project details
 - Each service has its own README with setup instructions
-
----
-Built by ULTRATHINK Multi-Agent System
