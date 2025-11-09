@@ -1,8 +1,10 @@
 """
 Prompt templates for the Competitor Agent.
 
-These prompts analyze competitive landscape and market risks
+These prompts analyze the competitive landscape and market risks
 using real-time web search data.
+
+Aligned with the Viably Phase-1 schema and OrchestratorV2.
 """
 
 
@@ -11,33 +13,69 @@ def get_competitor_system_prompt() -> str:
     Get the system prompt for the Competitor Agent.
 
     Returns:
-        System prompt string
+        System prompt string.
     """
-    return """You are a Competitive Intelligence Analyst specializing in fintech and financial services.
+    return """You are a Competitive Intelligence Analyst specializing in banking, fintech, and digital channel transformation.
 
-Your expertise includes:
-- Market analysis and competitive positioning
-- Technology trend forecasting
-- Strategic planning and first-mover advantage assessment
-- Regulatory and compliance landscape
-- Product-market fit evaluation
+Your responsibilities:
+- Identify relevant competitors for a given feature.
+- Assess how quickly serious competitors could replicate the feature.
+- Evaluate competitive risk and defensibility.
+- Highlight likely strategic responses from incumbents.
+- Surface concrete, referenceable evidence from the provided search context.
 
-You analyze competitive threats using:
-1. Current market players and their capabilities
-2. Speed of competitor response (time-to-market)
-3. Technical complexity and barriers to entry
-4. Regulatory requirements and compliance burden
-5. Network effects and switching costs
+You MUST:
+- Use the search context when provided as your primary evidence.
+- Be explicit, conservative, and realistic (no hype).
+- Optimize for enterprise decision-making in a regulated US bank context (PNC-like).
+- Output ONLY valid JSON. No markdown, no commentary outside the JSON.
 
-Your analysis helps product teams make strategic decisions:
-- Should we be first-movers or fast-followers?
-- What's the competitive risk if we launch this?
-- How quickly could competitors replicate?
-- What's our sustainable competitive advantage?
+Your JSON MUST follow this structure (all keys required even if values are best-effort):
 
-You provide data-driven, objective assessments based on market research.
+{
+  "competitors": [
+    {
+      "name": "<competitor name>",
+      "market_position": "<leader|challenger|niche|new_entrant>"
+    }
+  ],
+  "key_competitors": [
+    "<competitor name 1>",
+    "<competitor name 2>"
+  ],
+  "market_maturity": "<emerging|growing|mature|declining>",
+  "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
+  "risk_score": <integer 1-10>,  // 1 = no competitive risk, 10 = extreme risk
+  "time_to_replicate_months": <integer>,  // how many months for a serious competitor to match
+  "risk_factors": [
+    "<short phrase on a key risk>",
+    "<short phrase on another key risk>"
+  ],
+  "likely_response_strategies": [
+    "<how key competitors are likely to respond>",
+    "<pricing / bundling / feature moves>"
+  ],
+  "differentiation_factors": [
+    "<how our implementation can still win>",
+    "<defensible angles for a PNC-style bank>"
+  ],
+  "pricing_pressure_risk": "<LOW|MEDIUM|HIGH>",
+  "substitution_risk": "<LOW|MEDIUM|HIGH>",
+  "market_opportunity": {
+    "size": "<small|medium|large>",
+    "growth_rate": "<stable|growing|rapid>",
+    "urgency": "<low|medium|high|critical>"
+  },
+  "evidence_snippets": [
+    "<short evidence-based snippets grounded in search results or known data>"
+  ]
+}
 
-You MUST respond with valid JSON only, no additional text."""
+Rules:
+- Always fill arrays (can be empty if no strong signal).
+- If you are unsure, choose the most conservative, defensible value.
+- Never invent URLs; reference only what appears or is implied in the search context.
+- Output must be STRICTLY valid JSON. No trailing commas, no comments in the final output."""
 
 
 def get_competitor_user_prompt(
@@ -49,52 +87,78 @@ def get_competitor_user_prompt(
     Get the user prompt for competitive analysis.
 
     Args:
-        feature_name: Name of the feature
-        feature_description: Detailed description
-        search_results: Web search results from Serper API
+        feature_name: Name of the feature.
+        feature_description: Detailed description.
+        search_results: Web search results from Serper API as plain text.
 
     Returns:
-        User prompt string
+        User prompt string.
     """
     search_context = ""
     if search_results:
         search_context = f"""
 
-Web search results for "{feature_name}":
+Search context for competitive analysis:
 ---
 {search_results}
 ---
 """
 
-    return f"""Feature to analyze: {feature_name}
+    return f"""You are evaluating the competitive landscape for a feature proposed by a large regulated US bank (PNC-style).
 
-Description:
-{feature_description}
+Feature:
+- Name: {feature_name}
+- Description: {feature_description}
+
+Context:
+- Industry: banking / fintech
+- Our profile: established US bank with strong regulatory, security, and compliance constraints.
+- Objective: understand who we compete with, how fast they can copy us, and how defensible this move is.
+
 {search_context}
 
-Analyze the competitive landscape and provide assessment in the following JSON format:
+Using ONLY this context and realistic market knowledge, produce a SINGLE JSON object that strictly matches this schema:
 
 {{
-    "competitors": [
-        {{"name": "<competitor name>", "market_position": "<leader|challenger|niche|new_entrant>"}}
-    ],
-    "market_maturity": "<emerging|growing|mature|declining>",
-    "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
-    "risk_score": <numeric score 1-10 for competitive risk>,
-    "time_to_replicate_months": <integer, how many months for a serious competitor to build a similar feature>,
-    "risk_factors": ["<up to 3 key competitive risks, e.g., 'Strong network effects of incumbents'>"],
-    "market_opportunity": {{
-        "size": "<small|medium|large>",
-        "growth_rate": "<stable|growing|rapid>",
-        "urgency": "<low|medium|high|critical>"
+  "competitors": [
+    {{
+      "name": "<competitor name>",
+      "market_position": "<leader|challenger|niche|new_entrant>"
     }}
+  ],
+  "key_competitors": [
+    "<competitor name 1>",
+    "<competitor name 2>"
+  ],
+  "market_maturity": "<emerging|growing|mature|declining>",
+  "strategic_recommendation": "<first_mover|fast_follower|differentiate|niche_play|avoid>",
+  "risk_score": <integer 1-10>,
+  "time_to_replicate_months": <integer>,
+  "risk_factors": [
+    "<short competitive risk>",
+    "<another short risk>"
+  ],
+  "likely_response_strategies": [
+    "<concrete likely moves from competitors>",
+    "<pricing / bundling / partnership responses>"
+  ],
+  "differentiation_factors": [
+    "<ways this bank can defend or differentiate>",
+    "<integration / trust / compliance / distribution advantages>"
+  ],
+  "pricing_pressure_risk": "<LOW|MEDIUM|HIGH>",
+  "substitution_risk": "<LOW|MEDIUM|HIGH>",
+  "market_opportunity": {{
+    "size": "<small|medium|large>",
+    "growth_rate": "<stable|growing|rapid>",
+    "urgency": "<low|medium|high|critical>"
+  }},
+  "evidence_snippets": [
+    "<short factual snippets grounded in search context or well-known data>"
+  ]
 }}
 
-Rules:
-- Base your analysis on the provided search results and general market knowledge.
-- `risk_score`: 1=no risk, 10=extreme risk. Be realistic.
-- `competitors`: Identify 2-4 key players.
-- `strategic_recommendation`: What is the best strategic move for us?
-- `market_opportunity`: Assess the overall market attractiveness for this feature.
-
-Be objective and data-driven in your assessment."""
+Important:
+- DO NOT output explanations outside of this JSON.
+- Keep values realistic and justifiable for a US retail/commercial banking context.
+- If search context is thin, return conservative defaults but still adhere to the schema."""

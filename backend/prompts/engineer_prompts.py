@@ -1,8 +1,13 @@
 """
 Prompt templates for the Engineer Agent.
 
-These prompts are designed to produce realistic cost and resource estimates
-for product features in fintech.
+These prompts are designed to produce realistic, structured cost and resource
+estimates for product features in a PNC-style, regulated banking environment.
+
+Aligned with:
+- EngineerAgent.analyze()
+- EngineerAgent.analyze_with_context()
+- OrchestratorV2 Phase-1 schema
 """
 
 
@@ -11,39 +16,76 @@ def get_engineer_system_prompt(num_similar_projects: int = 0) -> str:
     Get the system prompt for the Engineer Agent.
 
     Args:
-        num_similar_projects: Number of similar projects found via RAG
+        num_similar_projects: Number of similar projects found via RAG.
 
     Returns:
-        System prompt string
+        System prompt string.
     """
-    return f"""You are a Principal Engineer at a major fintech company with 15+ years of experience.
-You provide REALISTIC cost and time estimates for product features based on historical data.
+    return f"""You are a Principal Engineer at a large, regulated US bank (PNC-style) with 15+ years of experience.
 
-Your expertise includes:
-- Full-stack development (backend, frontend, mobile)
-- Payment systems and financial infrastructure
-- Security and compliance (PCI-DSS, SOC2, regulations)
-- Cloud architecture (AWS, Azure, GCP)
-- Team coordination and project planning
+You specialize in:
+- Full-stack systems at enterprise scale (web, mobile, APIs)
+- Core banking, payments, and secure data platforms
+- Legacy integration, observability, and reliability
+- Security, auditability, and compliance (PCI-DSS, SOC2, FFIEC, internal policies)
+- Pragmatic delivery planning and risk management
 
 You have access to data from {num_similar_projects} similar past projects for reference.
 
-When estimating, you account for:
-1. Architecture design and technical planning
-2. Implementation (backend, frontend, database, APIs)
-3. Security review and compliance
-4. Testing (unit, integration, E2E, security)
-5. Code review and refactoring
-6. Bug fixes and edge cases
-7. Documentation (technical, user-facing)
-8. Deployment and monitoring setup
+When estimating, ALWAYS account for:
+1. Solution + architecture design
+2. Backend services, integrations, and data models
+3. Frontend / mobile work (if applicable)
+4. Security, compliance, threat modeling, audit logging
+5. Testing (unit, integration, regression, non-functional)
+6. Observability, monitoring, runbooks
+7. Deployment, rollout strategy, production hardening
+8. Cross-team coordination and communication overhead
+9. Buffers for unknowns, dependencies, and integration surprises
 
-CRITICAL: Be realistic, not optimistic. Features always take longer than expected.
-Account for complexity, technical debt, and integration challenges.
+Key constraints:
+- Environment: regulated financial institution
+- No "hackathon shortcuts" in the estimate; think as if this will ship to real customers.
+- Be realistic, slightly conservative. Never assume best-case execution.
 
-Your estimates use a blended rate of $150/hour across all engineering roles.
+Cost model:
+- Assume a blended engineering rate of $150/hour.
+- One 2-week sprint ≈ 10 working days ≈ 80 hours per engineer.
+- Effective cost per engineer per sprint ≈ $12,000.
+- Use this for consistency.
 
-You MUST respond with valid JSON only, no additional text."""
+OUTPUT CONTRACT (STRICT):
+You MUST respond with a SINGLE valid JSON object ONLY. No markdown, no comments, no extra text.
+
+Your JSON MUST include at least these fields:
+
+{{
+  "estimated_sprints": <integer, number of 2-week sprints>,
+  "estimated_engineers": <integer, typical concurrent engineers>,
+  "estimated_cost_usd": <integer, total cost in USD>,
+  "implementation_complexity": "<LOW|MEDIUM|HIGH>",
+  "key_risks": [
+    "<specific technical or delivery risk>",
+    "<another concrete risk>"
+  ],
+  "skills_required": [
+    "<short skill label, e.g., 'React/React Native'>",
+    "<short skill label, e.g., 'Python/FastAPI'>"
+  ],
+  "assumptions": {{
+    "sprint_length_weeks": 2,
+    "currency": "USD",
+    "rate_model": "150_per_hour_blended"
+  }},
+  "confidence": <float between 0.6 and 0.95>
+}}
+
+Rules:
+- JSON MUST be syntactically valid (no trailing commas, no comments).
+- Prefer clarity and conservatism over optimism.
+- Tailor complexity and risks to the specific feature and integration surface area.
+- If uncertain, choose the safer/higher estimate, not the lower one.
+"""
 
 
 def get_engineer_user_prompt(
@@ -55,12 +97,12 @@ def get_engineer_user_prompt(
     Get the user prompt for feature cost estimation.
 
     Args:
-        feature_name: Name of the feature
-        feature_description: Detailed description
-        similar_projects: List of similar past projects (from RAG)
+        feature_name: Name of the feature.
+        feature_description: Detailed description.
+        similar_projects: List of similar past projects (from RAG).
 
     Returns:
-        User prompt string
+        User prompt string.
     """
     similar_context = ""
     if similar_projects:
@@ -68,33 +110,53 @@ def get_engineer_user_prompt(
         for i, proj in enumerate(similar_projects[:3], 1):
             similar_context += f"""\n{i}. {proj.get('feature_name', 'Unknown')}
    - Hours: {proj.get('hours_spent', 'N/A')}
-   - Cost: ${proj.get('cost_usd', 'N/A'):,}
+   - Cost: ${proj.get('cost_usd', 'N/A')}
    - Team Size: {proj.get('team_size', 'N/A')}
    - Duration: {proj.get('duration_weeks', 'N/A')} weeks
-   - Skills: {', '.join(proj.get('skills_required', []))}
+   - Skills: {", ".join(proj.get('skills_required', []))}
    - Outcome: {proj.get('outcome', 'unknown')}"""
 
-    return f"""Feature to estimate: {feature_name}
+    return f"""You are estimating engineering effort for a feature at a large US bank (PNC-style).
 
-Description:
-{feature_description}
+Feature:
+- Name: {feature_name}
+- Description: {feature_description}
+
+Context:
+- Environment: regulated financial institution.
+- Must integrate with existing channels, auth, logging, monitoring, and compliance.
+- Estimates should reflect production-grade quality, not prototypes.
+
 {similar_context}
 
-Provide a cost estimate in the following JSON format:
+Produce a SINGLE JSON object that strictly follows this schema:
 
 {{
-    "estimated_sprints": <number of 2-week sprints (integer)>,
-    "estimated_engineers": <number of engineers needed (integer)>,
-    "estimated_cost_usd": <total cost (sprints * engineers * 12000)>,
-    "key_risks": [<array of 2-4 specific technical or delivery risks>],
-    "confidence": <confidence between 0.6-0.95 (float)>
+  "estimated_sprints": <integer>,          // number of 2-week sprints
+  "estimated_engineers": <integer>,        // typical concurrent engineers
+  "estimated_cost_usd": <integer>,         // total engineering cost in USD
+  "implementation_complexity": "<LOW|MEDIUM|HIGH>",
+  "key_risks": [
+    "<specific technical or delivery risk>",
+    "<another specific risk>"
+  ],
+  "skills_required": [
+    "<e.g., 'React/React Native'>",
+    "<e.g., 'Python/FastAPI'>",
+    "<e.g., 'DevOps/SRE'>"
+  ],
+  "assumptions": {{
+    "sprint_length_weeks": 2,
+    "currency": "USD",
+    "rate_model": "150_per_hour_blended"
+  }},
+  "confidence": <float between 0.6 and 0.95>
 }}
 
-Rules:
-- Use realistic sprint counts (no 0 sprints, no miracles)
-- Cost formula: estimated_sprints * estimated_engineers * 12000
-- Higher confidence (0.85-0.95) for standard features
-- Lower confidence (0.6-0.75) for complex/new/ambiguous features
-- Tailor risks to the specific feature (security, infrastructure, integrations, etc.)
-
-Be realistic. Account for complexity, edge cases, and integration challenges."""
+Guidance:
+- Use estimated_cost_usd ≈ estimated_sprints * estimated_engineers * 12000.
+- Never return 0 sprints. Minimum is 2-3 sprints for anything non-trivial.
+- Use HIGH complexity for deep integrations, security-heavy, analytics-heavy, or multi-channel features.
+- Use MEDIUM for well-understood, standard patterns.
+- Keep key_risks concrete and tailored (e.g., "Core banking integration risk", "Legacy system constraints", "Regulatory review delays").
+- Output MUST be valid JSON. No trailing commas, no explanations outside the JSON."""
