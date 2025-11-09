@@ -88,7 +88,7 @@ export default function Dashboard() {
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <GitBranch className="w-8 h-8 text-blue-600 dark:text-blue-500" />
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viability</h1>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Viably</h1>
           </div>
           <div className="flex items-center space-x-4">
             <button
