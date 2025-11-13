@@ -120,6 +120,9 @@ The Viably repository is organized into three main services:
 
 For a more detailed breakdown of the architecture and file structure, please see the [Project Map](PROJECT_MAP.md).
 
+##Contributers
+Project developed in HackUTD by Deepesh Bhatia, Prajit Vishwanadha, Ved Dharmatti & Vikash Mall
+
 ## Contributing
 
 We welcome contributions to Viably! If you're interested in helping, please check out our contributing guidelines (coming soon).
