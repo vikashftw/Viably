@@ -1,25 +1,4 @@
-<p align="center">
-  <a href="https://viably.ai" target="_blank">
-    <img src="https://i.imgur.com/UP38s2C.png" alt="Viably Logo" width="200">
-  </a>
-</p>
 
-<h1 align="center">Viably</h1>
-
-<p align="center">
-  <strong>From Idea to PR in 40 Seconds.</strong>
-  <br />
-  An AI-powered feature validation system that analyzes product ideas, provides deep insights, and generates a GitHub PR with scaffolded code, ready for development.
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.9-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/react-18-blue.svg" alt="React">
-  <img src="https://img.shields.io/badge/next.js-14-blue.svg" alt="Next.js">
-  <img src="https://img.shields.io/badge/node.js-18-green.svg" alt="Node.js">
-</p>
-
----
 
 ## The Problem
 
